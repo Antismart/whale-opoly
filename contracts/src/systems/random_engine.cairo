@@ -1,4 +1,4 @@
-use starknet::{ContractAddress, get_caller_address, get_block_timestamp, get_block_info};
+use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
 use dojo::model::{ModelStorage};
 use dojo::world::{WorldStorage};
 use dojo::event::{EventStorage};
@@ -190,7 +190,7 @@ pub mod random_engine {
         CHANCE_CARDS_COUNT, COMMUNITY_CHEST_CARDS_COUNT,
         DICE_ROLL_SALT, CARD_DRAW_SALT, MARKET_EVENT_SALT
     };
-    use starknet::{ContractAddress, get_caller_address, get_block_timestamp, get_block_info};
+    use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
     use dojo::model::{ModelStorage, ModelValueStorage};
     use dojo::world::{WorldStorage, WorldStorageTrait};
     use dojo::event::{EventStorage};
@@ -200,14 +200,16 @@ pub mod random_engine {
         fn initialize_game_randomness(ref self: ContractState, game_id: u64, players: Span<ContractAddress>) -> bool {
             let mut world = self.world_default();
             let current_time = get_block_timestamp();
-            let block_info = get_block_info().unbox();
+            
+            // Use timestamp as seed instead of block_hash
+            let timestamp_seed = current_time.into();
 
             // Initialize random seed for the game
             let random_seed = RandomSeed {
                 game_id,
                 round: 0,
-                seed: block_info.block_hash,
-                block_hash: block_info.block_hash,
+                seed: timestamp_seed,
+                block_hash: timestamp_seed,
                 player_commits: array![].span(),
                 reveal_deadline: current_time + COMMITMENT_REVEAL_WINDOW,
                 is_revealed: false,
@@ -216,8 +218,8 @@ pub mod random_engine {
             // Initialize entropy pool
             let entropy_pool = EntropyPool {
                 game_id,
-                accumulated_entropy: self._combine_entropy(block_info.block_hash, game_id.into()),
-                block_hashes: array![block_info.block_hash].span(),
+                accumulated_entropy: self._combine_entropy(timestamp_seed, game_id.into()),
+                block_hashes: array![timestamp_seed].span(),
                 player_contributions: array![].span(),
                 external_entropy: array![].span(),
                 last_updated: current_time,
@@ -323,12 +325,13 @@ pub mod random_engine {
             // Get entropy
             let entropy = self._get_fresh_entropy(game_id, DICE_ROLL_SALT);
             
-            // Generate dice values (1-6)
-            let dice1 = ((entropy % 6) + 1).try_into().unwrap();
-            let dice2 = (((entropy / 7) % 6) + 1).try_into().unwrap();
+            // Convert entropy to u256 and use it for randomness
+            let entropy_u256: u256 = entropy.into();
+            let dice1 = ((entropy_u256.low % 6) + 1).try_into().unwrap();
+            let dice2 = (((entropy_u256.low / 7) % 6) + 1).try_into().unwrap();
 
-            // Create audit record
-            let audit_id = world.uuid();
+            // Create audit record with simple ID
+            let audit_id = current_time; // Use timestamp as audit ID
             let audit = RandomnessAudit {
                 audit_id,
                 game_id,
@@ -337,7 +340,7 @@ pub mod random_engine {
                 input_entropy: entropy,
                 output_value: (dice1.into() * 10 + dice2.into()).into(),
                 timestamp: current_time,
-                block_number: get_block_info().unbox().block_number,
+                block_number: 0, // Simplified
             };
 
             world.write_model(@audit);
@@ -372,10 +375,11 @@ pub mod random_engine {
                 DeckType::CommunityChest => COMMUNITY_CHEST_CARDS_COUNT,
             };
 
-            let card_id = ((entropy % card_count.into()) + 1).try_into().unwrap();
+            let entropy_u256: u256 = entropy.into();
+            let card_id = ((entropy_u256.low % card_count.into()) + 1).try_into().unwrap();
 
             // Create audit record
-            let audit_id = world.uuid();
+            let audit_id = current_time; // Use timestamp as audit ID
             let audit = RandomnessAudit {
                 audit_id,
                 game_id,
@@ -384,7 +388,7 @@ pub mod random_engine {
                 input_entropy: entropy,
                 output_value: card_id.into(),
                 timestamp: current_time,
-                block_number: get_block_info().unbox().block_number,
+                block_number: 0, // Simplified
             };
 
             world.write_model(@audit);
@@ -410,10 +414,11 @@ pub mod random_engine {
             let entropy = self._get_fresh_entropy(game_id, MARKET_EVENT_SALT);
 
             // Generate different seeds for market event parameters
-            let event_type_seed = ((entropy % 5) + 1).try_into().unwrap(); // 5 event types
-            let magnitude_seed = (((entropy / 7) % 100) + 1).try_into().unwrap(); // 1-100 magnitude
-            let duration_seed = (((entropy / 11) % 10) + 1).try_into().unwrap(); // 1-10 duration
-            let target_seed = (((entropy / 13) % 8) + 1).try_into().unwrap(); // 8 property groups
+            let entropy_u256: u256 = entropy.into();
+            let event_type_seed = ((entropy_u256.low % 5) + 1).try_into().unwrap(); // 5 event types
+            let magnitude_seed = (((entropy_u256.low / 7) % 100) + 1).try_into().unwrap(); // 1-100 magnitude
+            let duration_seed = (((entropy_u256.low / 11) % 10) + 1).try_into().unwrap(); // 1-10 duration
+            let target_seed = (((entropy_u256.low / 13) % 8) + 1).try_into().unwrap(); // 8 property groups
 
             let market_seed = MarketEventSeed {
                 event_type_seed,
@@ -423,7 +428,7 @@ pub mod random_engine {
             };
 
             // Create audit record
-            let audit_id = world.uuid();
+            let audit_id = current_time; // Use timestamp as audit ID
             let audit = RandomnessAudit {
                 audit_id,
                 game_id,
@@ -432,7 +437,7 @@ pub mod random_engine {
                 input_entropy: entropy,
                 output_value: entropy, // Store full entropy for market events
                 timestamp: current_time,
-                block_number: get_block_info().unbox().block_number,
+                block_number: 0, // Simplified
             };
 
             world.write_model(@audit);
@@ -493,25 +498,25 @@ pub mod random_engine {
             let mut world = self.world_default();
             let mut entropy_pool: EntropyPool = world.read_model(game_id);
             
-            // Combine multiple entropy sources
-            let block_info = get_block_info().unbox();
+            // Combine multiple entropy sources using timestamp instead of block_hash
+            let timestamp = get_block_timestamp();
             let fresh_entropy = self._combine_entropy(
                 entropy_pool.accumulated_entropy,
-                self._combine_entropy(block_info.block_hash, salt)
+                self._combine_entropy(timestamp.into(), salt)
             );
 
             // Update usage count
             entropy_pool.usage_count += 1;
-            entropy_pool.last_updated = get_block_timestamp();
+            entropy_pool.last_updated = timestamp;
             
-            // Add new block hash to pool
+            // Add new timestamp to pool
             let mut new_block_hashes = ArrayTrait::new();
             let mut i = 0;
             while i < entropy_pool.block_hashes.len() {
                 new_block_hashes.append(*entropy_pool.block_hashes.at(i));
                 i += 1;
             };
-            new_block_hashes.append(block_info.block_hash);
+            new_block_hashes.append(timestamp.into());
             entropy_pool.block_hashes = new_block_hashes.span();
 
             world.write_model(@entropy_pool);
@@ -558,7 +563,7 @@ pub mod random_engine {
 
         fn _create_security_alert(ref self: ContractState, alert_type: SecurityAlertType, severity: AlertSeverity, description: felt252) {
             let mut world = self.world_default();
-            let alert_id = world.uuid();
+            let alert_id = get_block_timestamp(); // Use timestamp as alert ID
             let current_time = get_block_timestamp();
 
             let alert = SecurityAlert {
