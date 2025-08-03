@@ -4,8 +4,9 @@ mod systems {
     mod property_management;
     mod treasury;
     mod random_engine;
+    mod security_simple;
     // Temporarily disabled advanced systems due to Cairo compatibility issues
-    // These need significant refactoring for Cairo 2.10.1
+    // These systems cause compilation to hang and need significant refactoring for Cairo 2.10.1
     // mod security;
     // mod economics;
     // mod market_events;
