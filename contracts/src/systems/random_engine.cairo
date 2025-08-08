@@ -4,7 +4,7 @@ use dojo::world::{WorldStorage};
 use dojo::event::{EventStorage};
 
 use whale_opoly::models::{
-    RandomSeed, SecurityAlert, SecurityAlertType, AlertSeverity
+    RandomSeed, SecurityAlert, SecurityAlertType, AlertSeverity, GameState
 };
 
 // ===== INTERFACES =====
@@ -129,6 +129,19 @@ pub struct RandomnessAudit {
     pub block_number: u64,
 }
 
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct DiceRollHistory {
+    #[key]
+    pub game_id: u64,
+    #[key]
+    pub player: ContractAddress,
+    pub recent_rolls: Span<u8>,     // encoded as d1*10 + d2
+    pub consecutive_doubles: u8,
+    pub consecutive_identical: u8,
+    pub last_updated: u64,
+}
+
 // ===== ENUMS =====
 
 #[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
@@ -186,9 +199,11 @@ pub mod random_engine {
         RandomSeed, SecurityAlert, SecurityAlertType, AlertSeverity,
         RandomnessCommitment, EntropyPool, RandomnessAudit, DeckType, IntegrityIssue, 
         RandomnessOperation, MarketEventSeed,
-        COMMITMENT_REVEAL_WINDOW, MIN_ENTROPY_THRESHOLD, MAX_DICE_REROLLS,
+        COMMITMENT_REVEAL_WINDOW, MAX_DICE_REROLLS,
         CHANCE_CARDS_COUNT, COMMUNITY_CHEST_CARDS_COUNT,
-        DICE_ROLL_SALT, CARD_DRAW_SALT, MARKET_EVENT_SALT
+        DICE_ROLL_SALT, CARD_DRAW_SALT, MARKET_EVENT_SALT,
+        DiceRollHistory,
+        GameState
     };
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
     use dojo::model::{ModelStorage, ModelValueStorage};
@@ -228,6 +243,22 @@ pub mod random_engine {
 
             world.write_model(@random_seed);
             world.write_model(@entropy_pool);
+
+            // Initialize dice roll history for each player
+            let mut i = 0;
+            while i < players.len() {
+                let p = *players.at(i);
+                let hist = DiceRollHistory {
+                    game_id,
+                    player: p,
+                    recent_rolls: array![].span(),
+                    consecutive_doubles: 0,
+                    consecutive_identical: 0,
+                    last_updated: current_time,
+                };
+                world.write_model(@hist);
+                i += 1;
+            };
 
             true
         }
@@ -446,17 +477,89 @@ pub mod random_engine {
         }
 
         fn verify_randomness_integrity(self: @ContractState, game_id: u64, round: u64) -> bool {
-            let world = self.world_default();
-            
-            // Check if all required commitments are present and revealed
+            let mut world = self.world_default();
+            let now = get_block_timestamp();
+
+            // Load seed and current players in the game
             let random_seed: RandomSeed = world.read_model((game_id, round));
-            
-            if random_seed.player_commits.len() == 0 {
+            let gs: GameState = world.read_model(game_id);
+            let players: Span<ContractAddress> = gs.players;
+
+            // Must be past reveal deadline to verify integrity
+            if now <= random_seed.reveal_deadline {
                 return false;
             }
 
-            // In a full implementation, this would check all commitments are properly revealed
-            // and verify the entropy generation process
+            // Require at least one commitment
+            if random_seed.player_commits.len() == 0 {
+                world.emit_event(@RandomnessIntegrityAlert {
+                    game_id,
+                    round,
+                    issue_type: IntegrityIssue::MissingCommitment,
+                    timestamp: now,
+                });
+                return false;
+            }
+
+            // Every player must have a revealed commitment for this round
+            let mut failure_code: u8 = 0_u8; // 1=Missing, 2=Late, 3=Invalid
+            let mut i = 0;
+            while i < players.len() {
+                let p_ref = players.at(i);
+                let player: ContractAddress = *p_ref;
+                let commitment: RandomnessCommitment = world.read_model((game_id, round, player));
+
+                // Must be revealed
+                if !commitment.is_revealed {
+                    failure_code = 1_u8;
+                    break;
+                }
+
+                // Verify reveal within window and seed deadline
+                let revealed_at = commitment.revealed_at.unwrap();
+                if revealed_at > commitment.committed_at + COMMITMENT_REVEAL_WINDOW || revealed_at > random_seed.reveal_deadline {
+                    failure_code = 2_u8;
+                    break;
+                }
+
+                // Verify reveal matches original commitment
+                let revealed_nonce = commitment.revealed_nonce.unwrap();
+                let expected_hash = self._hash_commitment(revealed_nonce);
+                if expected_hash != commitment.commitment_hash {
+                    failure_code = 3_u8;
+                    break;
+                }
+
+                i += 1;
+            };
+
+            if failure_code != 0_u8 {
+                let issue = if failure_code == 1_u8 {
+                    IntegrityIssue::MissingCommitment
+                } else {
+                    if failure_code == 2_u8 { IntegrityIssue::LateReveal } else { IntegrityIssue::InvalidReveal }
+                };
+                world.emit_event(@RandomnessIntegrityAlert {
+                    game_id,
+                    round,
+                    issue_type: issue,
+                    timestamp: now,
+                });
+                return false;
+            }
+
+            // Check player-contributed entropy is sufficient (at least one per player)
+            let pool: EntropyPool = world.read_model(game_id);
+            if pool.player_contributions.len() < players.len() {
+                world.emit_event(@RandomnessIntegrityAlert {
+                    game_id,
+                    round,
+                    issue_type: IntegrityIssue::InsufficientEntropy,
+                    timestamp: now,
+                });
+                return false;
+            }
+
             true
         }
 
@@ -485,13 +588,32 @@ pub mod random_engine {
         }
 
         fn _combine_entropy(self: @ContractState, base: felt252, additional: felt252) -> felt252 {
-            // Simple entropy combination - in production would use more sophisticated methods
-            base + additional + get_block_timestamp().into()
+            // Enhanced entropy mixing: multi-round non-linear combination with fixed salts and timestamp
+            let t: felt252 = get_block_timestamp().into();
+
+            // Round 1: seed and square
+            let mut x: felt252 = base + 'MIX_A'.into() + additional + t;
+            let r1: felt252 = (x * x) + ('MIX_B'.into() * (base + 1));
+
+            // Round 2: cubic non-linearity and salt
+            let r2: felt252 = (r1 * r1 * r1) + ('MIX_C'.into() * (additional + 3));
+
+            // Round 3: cross-mix base and additional with distinct salts
+            let cross1: felt252 = r2 + (base * 'MIX_D'.into());
+            let cross2: felt252 = r2 + (additional * 'MIX_E'.into());
+            let r3: felt252 = cross1 * cross2;
+
+            // Final diffusion
+            (r3 * r3) + 'MIX_F'.into()
         }
 
         fn _hash_commitment(self: @ContractState, nonce: felt252) -> felt252 {
-            // Simple hash - in production would use pedersen_hash or similar
-            nonce + 'COMMITMENT'.into()
+            // Strengthened hash-like mixer for commitments (placeholder for Pedersen/Poseidon)
+            let t: felt252 = get_block_timestamp().into();
+            let s1: felt252 = nonce + 'CMT1'.into();
+            let s2: felt252 = (s1 * s1) + 'CMT2'.into() + t;
+            let s3: felt252 = (s2 * s2 * s2) + ('CMT3'.into() * (nonce + 7));
+            (s3 * s3) + 'CMT4'.into()
         }
 
         fn _get_fresh_entropy(ref self: ContractState, game_id: u64, salt: felt252) -> felt252 {
@@ -550,15 +672,100 @@ pub mod random_engine {
         }
 
         fn _check_dice_patterns(ref self: ContractState, game_id: u64, player: ContractAddress, dice1: u8, dice2: u8) {
-            // In a full implementation, this would track recent rolls and detect patterns
-            // For now, just check for double sixes which might indicate manipulation
-            if dice1 == 6 && dice2 == 6 {
+            let mut world = self.world_default();
+            let now = get_block_timestamp();
+
+            // Load history
+            let mut hist: DiceRollHistory = world.read_model((game_id, player));
+
+            // Encode current roll as d1*10 + d2
+            let encoded: u8 = (dice1 * 10_u8) + dice2;
+
+            // Update consecutive doubles
+            if dice1 == dice2 {
+                hist.consecutive_doubles = hist.consecutive_doubles + 1_u8;
+            } else {
+                hist.consecutive_doubles = 0_u8;
+            }
+
+            // Check identical to previous
+            let mut prev_same = false;
+            if hist.recent_rolls.len() > 0 {
+                let prev_idx = hist.recent_rolls.len() - 1;
+                let prev = *hist.recent_rolls.at(prev_idx);
+                prev_same = prev == encoded;
+            }
+            if prev_same { hist.consecutive_identical = hist.consecutive_identical + 1_u8; }
+            else { hist.consecutive_identical = 0_u8; }
+
+            // Maintain last 10 rolls
+            let mut new_recent = ArrayTrait::new();
+            let len = hist.recent_rolls.len();
+            let start = if len > 9 { len - 9 } else { 0 }; // keep last 9, then append current = total 10
+            let mut i = start;
+            while i < len {
+                new_recent.append(*hist.recent_rolls.at(i));
+                i += 1;
+            };
+            new_recent.append(encoded);
+            hist.recent_rolls = new_recent.span();
+            hist.last_updated = now;
+
+            // Analyze recent patterns
+            // 1) Too many doubles in a row
+            if hist.consecutive_doubles >= 3_u8 {
+                self._create_security_alert(
+                    SecurityAlertType::UnusualPattern,
+                    AlertSeverity::High,
+                    'Three or more doubles in a row'
+                );
+            }
+
+            // 2) Identical results repeated beyond threshold
+            if hist.consecutive_identical > MAX_DICE_REROLLS {
+                self._create_security_alert(
+                    SecurityAlertType::UnusualPattern,
+                    AlertSeverity::High,
+                    'Identical dice repeated'
+                );
+            }
+
+            // 3) Frequent double sixes in last 5 rolls
+            let mut count_dbl6: u8 = 0_u8;
+            let mut j = if hist.recent_rolls.len() > 5 { hist.recent_rolls.len() - 5 } else { 0 };
+            while j < hist.recent_rolls.len() {
+                if *hist.recent_rolls.at(j) == 66_u8 { count_dbl6 += 1_u8; }
+                j += 1;
+            };
+            if count_dbl6 >= 2_u8 {
                 self._create_security_alert(
                     SecurityAlertType::UnusualPattern,
                     AlertSeverity::Medium,
-                    'Double sixes rolled'
+                    'Frequent double sixes'
                 );
             }
+
+            // 4) Extreme sums (2 or 12) appearing disproportionately in last 8 rolls
+            let mut extreme_count: u8 = 0_u8;
+            let mut k = if hist.recent_rolls.len() > 8 { hist.recent_rolls.len() - 8 } else { 0 };
+            while k < hist.recent_rolls.len() {
+                let v = *hist.recent_rolls.at(k);
+                let d1 = v / 10_u8;
+                let d2 = v % 10_u8;
+                let sum = d1 + d2;
+                if sum == 2_u8 || sum == 12_u8 { extreme_count += 1_u8; }
+                k += 1;
+            };
+            if extreme_count >= 3_u8 {
+                self._create_security_alert(
+                    SecurityAlertType::UnusualPattern,
+                    AlertSeverity::Medium,
+                    'Extreme sums disproportionate'
+                );
+            }
+
+            // Persist history
+            world.write_model(@hist);
         }
 
         fn _create_security_alert(ref self: ContractState, alert_type: SecurityAlertType, severity: AlertSeverity, description: felt252) {

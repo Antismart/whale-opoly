@@ -1,0 +1,33 @@
+[world]
+name = "Whale-opoly"
+description = "A comprehensive Web3 Monopoly game built on Starknet with Dojo Engine. Features include advanced random number generation, property management, treasury systems, and multiplayer gameplay."
+cover_uri = "file://assets/cover.png"
+icon_uri = "file://assets/icon.png"
+website = "https://github.com/Antismart/whale-opoly"
+seed = "whale_opoly"
+
+[world.socials]
+x = "https://x.com/ohayo_dojo"
+discord = "https://discord.gg/FB2wR6uF"
+github = "https://github.com/dojoengine/dojo-starter"
+telegram = "https://t.me/dojoengine"
+
+[namespace]
+default = "whale_opoly"
+
+[env]
+ 
+ # Sepolia testnet configuration
+rpc_url = "https://api.cartridge.gg/x/starknet/sepolia"
+# You'll need to add your own testnet account credentials here
+# account_address = "YOUR_SEPOLIA_ACCOUNT_ADDRESS"
+# private_key = "YOUR_SEPOLIA_PRIVATE_KEY"
+
+# Local development configuration (commented out)
+# rpc_url = "http://localhost:5050/"
+# account_address = "0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec"
+# private_key = "0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912"
+# world_address = "0x06171ed98331e849d6084bf2b3e3186a7ddf35574dd68cab4691053ee8ab69d7"
+
+[writers]
+"whale_opoly" = ["whale_opoly-game_manager", "whale_opoly-board_actions", "whale_opoly-property_management", "whale_opoly-treasury", "whale_opoly-random_engine", "whale_opoly-security_simple"]

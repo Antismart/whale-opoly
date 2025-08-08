@@ -9,7 +9,7 @@ mod systems {
     // These systems cause compilation to hang and need significant refactoring for Cairo 2.10.1
     // mod security;
     mod economics;
-    // mod market_events;
+    mod market_events;
 }
 
 mod models;

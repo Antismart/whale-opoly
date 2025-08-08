@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build Whale-opoly Contracts",
+			"type": "shell",
+			"command": "sozo build",
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$gcc"
+			],
+			"args": [],
+			"options": {
+				"cwd": "${workspaceFolder}/contracts"
+			}
+		}
+	]
+}

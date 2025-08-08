@@ -433,13 +433,124 @@ pub mod game_manager {
         }
 
         fn _distribute_prizes(ref self: ContractState, game_id: u64, players: Span<ContractAddress>, winner: Option<ContractAddress>, total_pool: u256) {
-            // Prize distribution logic
-            // Winner: 60%, Runner-up: 25%, Third: 10%, Platform: 3%, Insurance: 2%
-            if winner.is_some() {
-                let winner_amount = (total_pool * 60) / 100;
-                // TODO: Implement actual prize distribution
-                // This would involve updating player balances and treasury
+            let mut world = self.world_default();
+            if players.len() == 0 { return (); }
+
+            // Split pool: Winner 60%, Runner-up 25%, Third 10%, Platform 3%, Insurance 2%
+            let winner_amt: u256 = (total_pool * 60_u256) / 100_u256;
+            let runner_amt: u256 = (total_pool * 25_u256) / 100_u256;
+            let third_amt: u256 = (total_pool * 10_u256) / 100_u256;
+            let platform_amt: u256 = (total_pool * 3_u256) / 100_u256;
+            let insurance_amt: u256 = (total_pool * 2_u256) / 100_u256;
+
+            // Determine podium by final in-game balances as tiebreaker (if winner not provided)
+            // Find winner address
+            let mut winner_addr_opt = winner;
+            if winner_addr_opt.is_none() {
+                let mut i = 0;
+                let mut best_balance: u256 = 0;
+                let mut best_addr: ContractAddress = *players.at(0);
+                while i < players.len() {
+                    let addr = *players.at(i);
+                    let pstate: PlayerGameState = world.read_model((addr, game_id));
+                    if pstate.balance > best_balance { best_balance = pstate.balance; best_addr = addr; }
+                    i += 1;
+                };
+                winner_addr_opt = Option::Some(best_addr);
             }
+
+            // Determine runner-up and third based on remaining balances
+            let winner_addr = winner_addr_opt.unwrap();
+            let mut runner_addr_opt: Option<ContractAddress> = Option::None;
+            let mut third_addr_opt: Option<ContractAddress> = Option::None;
+
+            // Runner-up
+            let mut i = 0;
+            let mut best2_balance: u256 = 0;
+            let mut best2_addr: ContractAddress = winner_addr; // placeholder
+            while i < players.len() {
+                let addr = *players.at(i);
+                if addr != winner_addr {
+                    let pstate: PlayerGameState = world.read_model((addr, game_id));
+                    if pstate.balance > best2_balance { best2_balance = pstate.balance; best2_addr = addr; }
+                }
+                i += 1;
+            };
+            if best2_balance > 0 { runner_addr_opt = Option::Some(best2_addr); }
+
+            // Third
+            let mut i2 = 0;
+            let mut best3_balance: u256 = 0;
+            let mut best3_addr: ContractAddress = winner_addr; // placeholder
+            while i2 < players.len() {
+                let addr = *players.at(i2);
+                if addr != winner_addr && (runner_addr_opt.is_none() || addr != runner_addr_opt.unwrap()) {
+                    let pstate: PlayerGameState = world.read_model((addr, game_id));
+                    if pstate.balance > best3_balance { best3_balance = pstate.balance; best3_addr = addr; }
+                }
+                i2 += 1;
+            };
+            if best3_balance > 0 { third_addr_opt = Option::Some(best3_addr); }
+
+            // Reallocate missing shares to winner to ensure 100%
+            let mut w_amt = winner_amt;
+            let mut r_amt = runner_amt;
+            let mut t_amt = third_amt;
+            if runner_addr_opt.is_none() { w_amt = w_amt + r_amt; r_amt = 0; }
+            if third_addr_opt.is_none() { w_amt = w_amt + t_amt; t_amt = 0; }
+
+            // Credit player winnings (global state aggregator)
+            let now = get_block_timestamp();
+            // Winner
+            let mut g_winner: GlobalPlayerState = world.read_model(winner_addr);
+            g_winner.total_winnings = g_winner.total_winnings + w_amt;
+            world.write_model(@g_winner);
+            // Runner
+            match runner_addr_opt {
+                Option::Some(addr) => {
+                    let mut g_runner: GlobalPlayerState = world.read_model(addr);
+                    g_runner.total_winnings = g_runner.total_winnings + r_amt;
+                    world.write_model(@g_runner);
+                },
+                Option::None => {}
+            };
+            // Third
+            match third_addr_opt {
+                Option::Some(addr) => {
+                    let mut g_third: GlobalPlayerState = world.read_model(addr);
+                    g_third.total_winnings = g_third.total_winnings + t_amt;
+                    world.write_model(@g_third);
+                },
+                Option::None => {}
+            };
+
+            // Move treasury allocations:
+            // - Winners' shares -> WarmWallet (queued for payout)
+            // - Platform share -> Operating
+            // - Insurance share -> Insurance
+            let winners_total: u256 = w_amt + r_amt + t_amt;
+            let mut hot: TreasuryBalance = world.read_model(BalanceType::HotWallet);
+            let mut warm: TreasuryBalance = world.read_model(BalanceType::WarmWallet);
+            let mut operating: TreasuryBalance = world.read_model(BalanceType::Operating);
+            let mut insurance: TreasuryBalance = world.read_model(BalanceType::Insurance);
+
+            let total_deduction: u256 = winners_total + platform_amt + insurance_amt;
+            assert!(hot.amount >= total_deduction, "Treasury hot wallet insufficient");
+
+            hot.amount = hot.amount - total_deduction;
+            warm.amount = warm.amount + winners_total;
+            operating.amount = operating.amount + platform_amt;
+            insurance.amount = insurance.amount + insurance_amt;
+
+            hot.last_updated = now;
+            warm.last_updated = now;
+            operating.last_updated = now;
+            insurance.last_updated = now;
+
+            world.write_model(@hot);
+            world.write_model(@warm);
+            world.write_model(@operating);
+            world.write_model(@insurance);
         }
 
         fn _cleanup_player_states(ref self: ContractState, players: Span<ContractAddress>, game_id: u64) {

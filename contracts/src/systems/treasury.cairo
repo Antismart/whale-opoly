@@ -21,6 +21,9 @@ pub trait ITreasury<T> {
     fn get_total_treasury(self: @T) -> u256;
     fn check_daily_limits(self: @T, balance_type: BalanceType) -> (u256, u256); // (limit, spent)
     fn is_withdrawal_allowed(self: @T, balance_type: BalanceType, amount: u256) -> bool;
+    // Multi-sig large withdrawal flow
+    fn request_large_withdrawal(ref self: T, balance_type: BalanceType, amount: u256, recipient: ContractAddress) -> u64;
+    fn approve_withdrawal(ref self: T, request_id: u64) -> bool;
 }
 
 // ===== EVENTS =====
@@ -78,6 +81,30 @@ pub struct EmergencyAction {
     pub balance_type: BalanceType,
     pub action: EmergencyActionType,
     pub authorized_by: ContractAddress,
+    pub timestamp: u64,
+}
+
+#[derive(Copy, Drop, Serde)]
+#[dojo::event]
+pub struct WithdrawalRequested {
+    #[key]
+    pub request_id: u64,
+    pub balance_type: BalanceType,
+    pub amount: u256,
+    pub recipient: ContractAddress,
+    pub requested_by: ContractAddress,
+    pub required_approvals: u8,
+    pub expires_at: u64,
+    pub timestamp: u64,
+}
+
+#[derive(Copy, Drop, Serde)]
+#[dojo::event]
+pub struct WithdrawalApproved {
+    #[key]
+    pub request_id: u64,
+    pub approver: ContractAddress,
+    pub approvals_count: u8,
     pub timestamp: u64,
 }
 
@@ -161,7 +188,8 @@ pub mod treasury {
         TreasuryAccess, TreasuryConfiguration, WithdrawalRequest, EmergencyActionType,
         HOT_WALLET_MAX_RATIO, WARM_WALLET_MAX_RATIO, MULTI_SIG_THRESHOLD, LARGE_WITHDRAWAL_THRESHOLD,
         DEFAULT_HOT_WALLET_DAILY_LIMIT, DEFAULT_WARM_WALLET_DAILY_LIMIT, DEFAULT_COLD_STORAGE_DAILY_LIMIT,
-        WITHDRAWAL_REQUEST_EXPIRY
+        WITHDRAWAL_REQUEST_EXPIRY,
+        WithdrawalRequested, WithdrawalApproved
     };
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
     use dojo::model::{ModelStorage, ModelValueStorage};
@@ -231,23 +259,52 @@ pub mod treasury {
             };
             assert!(can_withdraw, "No withdrawal permission");
 
+            // For large withdrawals, require multi-sig request/approval flow
+            if amount >= LARGE_WITHDRAWAL_THRESHOLD {
+                // Create a withdrawal request with caller as first approver
+                let request_id: u64 = current_time; // simple id
+                let req = WithdrawalRequest {
+                    request_id,
+                    balance_type,
+                    amount,
+                    recipient,
+                    requested_by: caller,
+                    approved_by: array![caller].span(),
+                    required_approvals: MULTI_SIG_THRESHOLD,
+                    is_executed: false,
+                    is_cancelled: false,
+                    expires_at: current_time + WITHDRAWAL_REQUEST_EXPIRY,
+                    created_at: current_time,
+                };
+                world.write_model(@req);
+
+                // Log alert and event
+                self._create_security_alert(
+                    SecurityAlertType::LargeTransaction,
+                    AlertSeverity::High,
+                    'Large withdrawal requested'
+                );
+                world.emit_event(@WithdrawalRequested {
+                    request_id,
+                    balance_type,
+                    amount,
+                    recipient,
+                    requested_by: caller,
+                    required_approvals: MULTI_SIG_THRESHOLD,
+                    expires_at: req.expires_at,
+                    timestamp: current_time,
+                });
+
+                // Do not execute yet
+                return false;
+            }
+
             // Get current balance
             let mut balance: TreasuryBalance = world.read_model(balance_type);
             assert!(balance.amount >= amount, "Insufficient funds");
 
             // Check daily limits
             assert!(self._check_daily_limit(balance_type, amount), "Daily limit exceeded");
-
-            // For large withdrawals, require multi-sig
-            if amount >= LARGE_WITHDRAWAL_THRESHOLD {
-                // In a full implementation, this would check for required signatures
-                // For now, we'll just log an alert
-                self._create_security_alert(
-                    SecurityAlertType::LargeTransaction,
-                    AlertSeverity::High,
-                    'Large withdrawal requested'
-                );
-            }
 
             // Update balance and daily spent
             balance.amount -= amount;
@@ -449,6 +506,128 @@ pub mod treasury {
             }
 
             true
+        }
+
+        fn request_large_withdrawal(ref self: ContractState, balance_type: BalanceType, amount: u256, recipient: ContractAddress) -> u64 {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+            let now = get_block_timestamp();
+
+            // Permission check same as withdraw
+            let access: TreasuryAccess = world.read_model(caller);
+            let can_withdraw = match balance_type {
+                BalanceType::HotWallet => access.can_withdraw_hot,
+                BalanceType::WarmWallet => access.can_withdraw_warm,
+                BalanceType::ColdStorage => access.can_withdraw_cold,
+                _ => false,
+            };
+            assert!(can_withdraw, "No withdrawal permission");
+
+            // Create request
+            let request_id: u64 = now;
+            let req = WithdrawalRequest {
+                request_id,
+                balance_type,
+                amount,
+                recipient,
+                requested_by: caller,
+                approved_by: array![caller].span(),
+                required_approvals: MULTI_SIG_THRESHOLD,
+                is_executed: false,
+                is_cancelled: false,
+                expires_at: now + WITHDRAWAL_REQUEST_EXPIRY,
+                created_at: now,
+            };
+            world.write_model(@req);
+
+            world.emit_event(@WithdrawalRequested {
+                request_id,
+                balance_type,
+                amount,
+                recipient,
+                requested_by: caller,
+                required_approvals: MULTI_SIG_THRESHOLD,
+                expires_at: req.expires_at,
+                timestamp: now,
+            });
+
+            request_id
+        }
+
+        fn approve_withdrawal(ref self: ContractState, request_id: u64) -> bool {
+            let mut world = self.world_default();
+            let approver = get_caller_address();
+            let now = get_block_timestamp();
+
+            let mut req: WithdrawalRequest = world.read_model(request_id);
+            assert!(!req.is_cancelled, "Request cancelled");
+            assert!(!req.is_executed, "Already executed");
+            assert!(now <= req.expires_at, "Request expired");
+
+            // Permissions based on wallet type
+            let access: TreasuryAccess = world.read_model(approver);
+            let can_withdraw = match req.balance_type {
+                BalanceType::HotWallet => access.can_withdraw_hot,
+                BalanceType::WarmWallet => access.can_withdraw_warm,
+                BalanceType::ColdStorage => access.can_withdraw_cold,
+                _ => false,
+            };
+            assert!(can_withdraw, "No withdrawal permission");
+
+            // Check duplicate approval
+            let mut i = 0;
+            let mut already = false;
+            while i < req.approved_by.len() {
+                if *req.approved_by.at(i) == approver { already = true; break; }
+                i += 1;
+            };
+            if !already {
+                let mut new_approvals = ArrayTrait::new();
+                let mut j = 0;
+                while j < req.approved_by.len() {
+                    new_approvals.append(*req.approved_by.at(j));
+                    j += 1;
+                };
+                new_approvals.append(approver);
+                req.approved_by = new_approvals.span();
+                world.write_model(@req);
+            }
+
+            world.emit_event(@WithdrawalApproved {
+                request_id,
+                approver,
+                approvals_count: req.approved_by.len().try_into().unwrap(),
+                timestamp: now,
+            });
+
+            // Execute if threshold reached
+            if req.approved_by.len() >= req.required_approvals.into() {
+                // Perform the withdrawal
+                let mut balance: TreasuryBalance = world.read_model(req.balance_type);
+                assert!(balance.amount >= req.amount, "Insufficient funds");
+                assert!(self._check_daily_limit(req.balance_type, req.amount), "Daily limit exceeded");
+
+                balance.amount -= req.amount;
+                balance.daily_spent += req.amount;
+                balance.last_updated = now;
+                world.write_model(@balance);
+
+                req.is_executed = true;
+                world.write_model(@req);
+
+                world.emit_event(@FundsWithdrawn {
+                    balance_type: req.balance_type,
+                    amount: req.amount,
+                    recipient: req.recipient,
+                    authorized_by: approver,
+                    new_balance: balance.amount,
+                    timestamp: now,
+                });
+
+                return true;
+            }
+
+            false
         }
     }
 
