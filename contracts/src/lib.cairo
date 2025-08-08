@@ -8,7 +8,7 @@ mod systems {
     // Temporarily disabled advanced systems due to Cairo compatibility issues
     // These systems cause compilation to hang and need significant refactoring for Cairo 2.10.1
     // mod security;
-    // mod economics;
+    mod economics;
     // mod market_events;
 }
 

@@ -121,7 +121,7 @@ pub struct PlayerEconomicData {
     #[key]
     pub player: ContractAddress,
     pub net_worth: u256,
-    pub cash_flow: i256,            // Can be negative
+    pub cash_flow: i128,            // Can be negative
     pub debt_ratio: u16,            // Basis points
     pub property_portfolio_value: u256,
     pub last_interest_payment: u64,
@@ -225,10 +225,12 @@ pub mod economics {
                 MarketEventType::Crash => CRASH_MULTIPLIER,
                 MarketEventType::Disaster => DISASTER_MULTIPLIER,
                 MarketEventType::Policy => {
-                    // Random between range
-                    let range_size = POLICY_MULTIPLIER_RANGE.1 - POLICY_MULTIPLIER_RANGE.0;
-                    let random_offset = magnitude.into() % range_size.into();
-                    POLICY_MULTIPLIER_RANGE.0 + random_offset.try_into().unwrap()
+                    // Random between range without felt252 modulus
+                    let (policy_min, policy_max) = POLICY_MULTIPLIER_RANGE;
+                    let range_size: u16 = policy_max - policy_min;
+                    let mag_u16: u16 = magnitude.into();
+                    let random_offset: u16 = if mag_u16 >= range_size { mag_u16 - range_size } else { mag_u16 };
+                    policy_min + random_offset
                 },
                 MarketEventType::CryptoNews => {
                     // Crypto news can be positive or negative
@@ -237,8 +239,8 @@ pub mod economics {
             };
 
             // Magnitude affects the intensity (50-150% of base effect)
-            let magnitude_factor = 50 + magnitude.into(); // 50-150%
-            let final_multiplier = (base_multiplier.into() * magnitude_factor) / 100;
+            let magnitude_factor: u256 = 50_u256 + magnitude.into(); // 50-150%
+            let final_multiplier: u256 = (base_multiplier.into() * magnitude_factor) / 100_u256;
 
             // Apply to all properties (simplified - in reality would be more targeted)
             let mut affected_properties = ArrayTrait::new();
@@ -249,11 +251,11 @@ pub mod economics {
                 
                 // Only affect owned properties
                 if property.owner.is_some() {
-                    let old_value = property.current_value;
-                    property.current_value = (property.current_value * final_multiplier.into()) / 10000;
+                    let _old_value = property.current_value;
+                    property.current_value = (property.current_value * final_multiplier) / 10000_u256;
                     
                     // Ensure property value doesn't go below 10% of base value
-                    let minimum_value = property.base_value / 10;
+                    let minimum_value = property.base_value / 10_u256;
                     if property.current_value < minimum_value {
                         property.current_value = minimum_value;
                     }
@@ -307,7 +309,7 @@ pub mod economics {
             let average_wealth = total_wealth / player_count.into();
             
             // Bankruptcy threshold is percentage of average wealth
-            (average_wealth * BANKRUPTCY_THRESHOLD_RATIO.into()) / 10000
+            (average_wealth * BANKRUPTCY_THRESHOLD_RATIO.into()) / 10000_u256
         }
 
         fn process_bank_interest(ref self: ContractState, game_id: u64, player: ContractAddress) -> u256 {
@@ -327,10 +329,10 @@ pub mod economics {
             }
 
             // Simple interest calculation: balance * rate * time
-            let interest_amount = (player_currency.balance * BASE_INTEREST_RATE.into() * hours_elapsed.into()) / (10000 * 24); // Daily rate
+            let interest_amount = (player_currency.balance * BASE_INTEREST_RATE.into() * hours_elapsed.into()) / (10000_u256 * 24_u256); // Daily rate
             
             // Only pay interest if positive balance
-            if player_currency.balance > 0 && interest_amount > 0 {
+            if player_currency.balance > 0_u256 && interest_amount > 0_u256 {
                 let balance_before = player_currency.balance;
                 player_currency.balance += interest_amount;
                 player_currency.total_earned += interest_amount;
@@ -339,8 +341,8 @@ pub mod economics {
                 player_econ.total_interest_earned += interest_amount;
                 
                 // Write updates
-                world.write_model(@player_currency);
                 world.write_model(@player_econ);
+                world.write_model(@player_currency);
 
                 // Emit event
                 world.emit_event(@InterestPaid {
@@ -373,7 +375,7 @@ pub mod economics {
             };
 
             // Apply tax rate
-            (total_property_value * BASE_TAX_RATE.into()) / 10000
+            (total_property_value * BASE_TAX_RATE.into()) / 10000_u256
         }
 
         fn process_salary_payment(ref self: ContractState, game_id: u64, player: ContractAddress) -> u256 {
@@ -389,10 +391,10 @@ pub mod economics {
 
             // Calculate bonus based on player's economic performance
             let player_econ: PlayerEconomicData = world.read_model((game_id, player));
-            let bonus = if player_econ.cash_flow >= 0 {
-                base_salary / 10 // 10% bonus for positive cash flow
+            let bonus = if player_econ.cash_flow >= 0_i128 {
+                base_salary / 10_u256 // 10% bonus for positive cash flow
             } else {
-                0
+                0_u256
             };
 
             let total_salary = base_salary + bonus;
@@ -430,7 +432,7 @@ pub mod economics {
                 if property.owner == Option::Some(player) {
                     if property.is_mortgaged {
                         // Mortgaged properties: current value minus mortgage debt
-                        let mortgage_debt = property.current_value / 2;
+                        let mortgage_debt = property.current_value / 2_u256;
                         if property.current_value > mortgage_debt {
                             total_wealth += property.current_value - mortgage_debt;
                         }
@@ -450,8 +452,8 @@ pub mod economics {
             let game_state: GameState = world.read_model(game_id);
 
             // Calculate money velocity (simplified)
-            let money_velocity = if economic_state.total_money_supply > 0 {
-                ((economic_state.total_property_value * 100) / economic_state.total_money_supply).try_into().unwrap_or(100)
+            let money_velocity = if economic_state.total_money_supply > 0_u256 {
+                ((economic_state.total_property_value * 100_u256) / economic_state.total_money_supply).try_into().unwrap_or(100)
             } else {
                 100
             };
@@ -463,8 +465,8 @@ pub mod economics {
             let wealth_gini = self._calculate_wealth_distribution(game_id, game_state.players);
 
             // Liquidity ratio
-            let liquidity_ratio = if economic_state.total_property_value > 0 {
-                ((economic_state.total_money_supply * 100) / economic_state.total_property_value).try_into().unwrap_or(100)
+            let liquidity_ratio = if economic_state.total_property_value > 0_u256 {
+                ((economic_state.total_money_supply * 100_u256) / economic_state.total_property_value).try_into().unwrap_or(100)
             } else {
                 100
             };
@@ -494,7 +496,7 @@ pub mod economics {
 
         fn apply_universal_basic_income(ref self: ContractState, game_id: u64) -> bool {
             let mut world = self.world_default();
-            let current_time = get_block_timestamp();
+            let _current_time = get_block_timestamp();
 
             let game_state: GameState = world.read_model(game_id);
             let mut payments_made = 0;
@@ -516,7 +518,7 @@ pub mod economics {
                 i += 1;
             };
 
-            payments_made > 0
+            payments_made > 0_usize
         }
     }
 
@@ -547,30 +549,32 @@ pub mod economics {
                 i += 1;
             };
 
-            if total_wealth == 0 {
+            if total_wealth == 0_u256 {
                 return 0; // Perfect equality when everyone has 0
             }
 
-            // Simplified Gini calculation (returns value in basis points)
-            // This is a rough approximation - full implementation would sort and use proper Gini formula
-            let average_wealth = total_wealth / players.len().into();
-            let mut deviation_sum: u256 = 0;
+            // Exact Gini calculation using pairwise absolute differences:
+            // G = sum_i sum_j |xi - xj| / (2 * n * sum_i xi)
+            let n: u256 = players.len().into();
+            let mut pairwise_sum: u256 = 0;
 
             let mut i = 0;
             while i < wealth_values.len() {
-                let wealth = *wealth_values.at(i);
-                let deviation = if wealth > average_wealth {
-                    wealth - average_wealth
-                } else {
-                    average_wealth - wealth
+                let wi = *wealth_values.at(i);
+                let mut j = 0;
+                while j < wealth_values.len() {
+                    let wj = *wealth_values.at(j);
+                    let diff = if wi > wj { wi - wj } else { wj - wi };
+                    pairwise_sum += diff;
+                    j += 1;
                 };
-                deviation_sum += deviation;
                 i += 1;
             };
 
-            // Convert to basis points (0-10000, where 10000 = 1.0 Gini coefficient)
-            if average_wealth > 0 {
-                ((deviation_sum * 10000) / (total_wealth * 2)).try_into().unwrap_or(10000)
+            // Convert to basis points (0-10000)
+            let denom = total_wealth * n * 2_u256;
+            if denom > 0_u256 {
+                ((pairwise_sum * 10000_u256) / denom).try_into().unwrap_or(10000)
             } else {
                 0
             }
