@@ -1,0 +1,459 @@
+/* Root layout */
+:root {
+  --bg: #0a0b10;
+  --panel: rgba(255,255,255,0.04);
+  --panel-2: rgba(255,255,255,0.06);
+  --text: #e6e9f0;
+  --muted: #9aa3b2;
+  --accent: #7c6cff;
+  --accent-2: #24d1ff;
+  --warn: #ff9d57;
+  --good: #7affc1;
+  --glow: 0 0 24px rgba(124,108,255,0.35), 0 0 48px rgba(36,209,255,0.2);
+  --vhSafe: min(100dvh, 100vh);
+  /* Make board smaller to leave room for dice and titles */
+  --board-size: clamp(320px, min(68vw, calc(var(--vhSafe) - 300px)), 900px);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, 'Helvetica Neue', Arial; background: radial-gradient(1200px 800px at 10% -10%, rgba(60,50,160,0.18), transparent), radial-gradient(1000px 700px at 90% 10%, rgba(36,209,255,0.12), transparent), var(--bg); color: var(--text); }
+
+.app { display: grid; grid-template-columns: 260px 1fr; gap: 0; min-height: 100vh; position: relative; }
+
+/* Sidebar */
+.sideNav { position: sticky; top: 0; height: 100vh; padding: 24px 16px; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border-right: 1px solid rgba(255,255,255,0.06); backdrop-filter: blur(10px); }
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.brand-logo { width: 42px; height: 42px; object-fit: contain; border-radius: 10px; background: rgba(255,255,255,0.06); padding: 4px; box-shadow: var(--glow); }
+.brand-mark { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: var(--glow); display:flex; align-items:center; justify-content:center; font-weight: 800; color: #0b0b12; }
+.brand-text h2 { margin: 0; font-size: 18px; letter-spacing: 0.5px; }
+.brand-text p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+
+.navList { display: grid; gap: 8px; margin-top: 8px; }
+.navItem { display: flex; align-items: center; gap: 10px; padding: 10px 12px; color: var(--text); background: transparent; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; cursor: pointer; text-align: left; transition: 150ms ease; }
+.navItem .icon { color: var(--muted); }
+.navItem:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); }
+.navItem.active { background: linear-gradient(180deg, rgba(124,108,255,0.14), rgba(124,108,255,0.06)); border-color: rgba(124,108,255,0.45); box-shadow: var(--glow); }
+
+.sideFooter { margin-top: auto; padding-top: 16px; }
+.chip { display: inline-flex; align-items:center; gap: 6px; padding: 6px 10px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; color: var(--muted); font-size: 12px; }
+.chip.warn { color: var(--warn); border-color: rgba(255,157,87,0.45); }
+
+/* Main content */
+.content { position: relative; padding: 28px; }
+.topbar { display: flex; align-items:center; justify-content: space-between; margin-bottom: 20px; }
+.crumbs .crumb { text-transform: capitalize; color: var(--muted); font-size: 14px; }
+.actions { display: flex; gap: 10px; }
+
+.btn { appearance: none; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); color: var(--text); padding: 10px 14px; border-radius: 10px; cursor: pointer; transition: 160ms ease; }
+.btn:hover { border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.09); }
+.btn.glow { background: linear-gradient(90deg, rgba(124,108,255,0.18), rgba(36,209,255,0.18)); border-color: rgba(124,108,255,0.45); box-shadow: var(--glow); }
+.btn.ghost { background: transparent; }
+.btn.outline { background: transparent; border-color: rgba(124,108,255,0.45); }
+.btn.small { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; padding: 18px; background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; }
+.hero-copy h1 { font-size: 32px; letter-spacing: 0.5px; margin: 0 0 8px; }
+.hero-copy p { margin: 0 0 12px; color: var(--muted); }
+.cta { display: flex; gap: 10px; margin-top: 10px; }
+.sparkle { display:inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #fff, rgba(255,255,255,0) 60%), linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 18px rgba(36,209,255,0.65); }
+
+.hero-cards { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+.statCard { background: var(--panel); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 14px; }
+.statLabel { font-size: 12px; color: var(--muted); }
+.statValue { font-size: 20px; font-weight: 700; margin-top: 6px; }
+
+/* Panels */
+.panel { margin-top: 20px; padding: 18px; background: var(--panel); border: 1px solid rgba(255,255,255,0.09); border-radius: 18px; }
+.panel.twoCol { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; align-items: start; }
+.panelTitle { display:flex; align-items:center; gap: 8px; font-weight: 600; margin-bottom: 12px; color: #fff; }
+.panel .icon { color: var(--accent-2); }
+.col { display: grid; gap: 12px; }
+
+/* Board preview */
+.board { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; background: var(--panel-2); border: 1px dashed rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; }
+.tile { position: relative; aspect-ratio: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; display:flex; align-items:center; justify-content:center; color: var(--muted); }
+.tile:hover { border-color: rgba(124,108,255,0.45); box-shadow: var(--glow); }
+.tileIndex { position: absolute; top: 6px; left: 8px; font-size: 11px; color: rgba(255,255,255,0.45); }
+
+/* Activity feed */
+.feed { display: grid; gap: 10px; }
+.feedItem { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; }
+.feedHeader { display:flex; align-items:center; gap: 8px; color: var(--muted); font-size: 12px; }
+.feedItem.good .dot { background: var(--good); box-shadow: 0 0 10px rgba(122,255,193,0.6); }
+.feedItem.warn .dot { background: var(--warn); box-shadow: 0 0 10px rgba(255,157,87,0.6); }
+.feedItem.info .dot { background: var(--accent-2); box-shadow: 0 0 10px rgba(36,209,255,0.6); }
+.dot { width: 8px; height: 8px; border-radius: 50%; display:inline-block; }
+.feedTitle { color: #fff; font-weight: 600; }
+.time { margin-left: auto; color: rgba(255,255,255,0.45); }
+.feedBody { margin-top: 6px; color: var(--muted); }
+
+/* Queue */
+.queue { display: grid; gap: 10px; }
+.queueItem { display:flex; align-items:center; justify-content: space-between; gap: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; }
+.qMain { display:grid; gap: 6px; }
+.qTitle { font-weight: 600; }
+.qMeta { display:flex; gap: 8px; flex-wrap: wrap; color: var(--muted); }
+.qActions { display:flex; gap: 8px; }
+
+/* Footer */
+.footer { margin: 24px 0 6px; text-align:center; color: var(--muted); font-size: 12px; }
+
+/* Floating background orbs */
+.bgOrbs { position: fixed; inset: 0; pointer-events: none; }
+.orb { position: absolute; width: 380px; height: 380px; filter: blur(90px); opacity: 0.15; border-radius: 50%; }
+.orbA { left: -60px; top: 10%; background: #7c6cff; }
+.orbB { right: -120px; top: 25%; background: #24d1ff; }
+.orbC { left: 20%; bottom: -160px; background: #8ef5ff; }
+
+/* Monopoly ring board improvements */
+.boardMono {
+  position: relative;
+  display: grid;
+  grid-template-rows: repeat(11, 1fr);
+  grid-template-columns: repeat(11, 1fr);
+  gap: 6px;
+  background: var(--panel-2);
+  border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 10px 10px 72px 10px;
+  width: var(--board-size);
+  height: var(--board-size);
+  margin: 0;
+  box-shadow: 0 2px 32px 0 rgba(36,209,255,0.08);
+}
+.monoTile {
+  position: relative;
+  display:flex;
+  flex-direction: column;
+  align-items:center;
+  justify-content:flex-end;
+  padding: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-align:center;
+  min-width: 36px;
+  min-height: 36px;
+}
+.monoTile.corner {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  justify-content: center;
+  min-width: 54px;
+  min-height: 54px;
+}
+.monoTile .index {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+}
+.monoTile .label { 
+  margin-top: 2px; 
+  line-height: 1.1; 
+  max-width: 96%; 
+  overflow-wrap: anywhere; 
+  hyphens: auto; 
+  word-break: normal; 
+  overflow: hidden; 
+  text-overflow: ellipsis; 
+  display: -webkit-box; 
+  line-clamp: 3;           /* standard */
+  -webkit-line-clamp: 3;   /* webkit */
+  -webkit-box-orient: vertical; 
+}
+.monoTile.left .label, .monoTile.right .label { line-clamp: 4; -webkit-line-clamp: 4; }
+
+/* Slightly larger, responsive tile text */
+.monoTile { font-size: clamp(11px, 0.95vw, 13px); }
+.monoTile.corner { font-size: clamp(12px, 1.05vw, 14px); }
+.monoTile .colorBar {
+  position: absolute;
+  left: 0; right: 0; height: 6px;
+  border-radius: 4px 4px 0 0;
+}
+
+/* Tile states */
+.monoTile.selected { outline: 2px solid rgba(36,209,255,0.6); box-shadow: 0 0 0 3px rgba(36,209,255,0.18) inset; }
+.monoTile .ownerStripe { position: absolute; width: 6px; height: 100%; right: 0; top: 0; border-radius: 0 8px 8px 0; opacity: 0.9; }
+.tokensWrap { position: absolute; bottom: 4px; left: 4px; display: flex; }
+.token { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.4); box-shadow: 0 0 8px rgba(0,0,0,0.3); }
+.houses { position: absolute; top: 6px; right: 6px; display:flex; gap: 3px; }
+.house { width: 8px; height: 8px; background: #35d07f; border: 1px solid #0f7a45; border-radius: 2px; }
+.hotel { width: 10px; height: 10px; background: #ff5b5b; border: 1px solid #8a2020; border-radius: 2px; }
+.monoTile.mortgaged { filter: grayscale(0.6) brightness(0.85); }
+
+/* Players panel */
+.playersPanel { display: grid; gap: 8px; }
+.playerRow { display:flex; align-items:center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px; }
+.playerRow.active { outline: 2px solid rgba(124,108,255,0.5); }
+.playerDot { width: 10px; height: 10px; border-radius: 50%; display:inline-block; }
+.playerName { font-weight: 600; }
+.playerPos { margin-left: auto; color: var(--muted); }
+.playerBal { font-variant-numeric: tabular-nums; margin-left: 8px; }
+
+/* Action bar */
+.actionBar { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px; }
+.turnRow { display:flex; align-items:center; gap: 8px; }
+.turnText { color: #fff; font-weight: 600; }
+.spacer { flex: 1 1 auto; }
+.balance { font-weight: 700; }
+.btnRow { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+/* Tile details */
+.tileDetails { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px; }
+.tileHeader { display:flex; align-items:center; gap: 8px; margin-bottom: 8px; }
+.colorSwatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.3); }
+.tileTitle { font-weight: 700; }
+.tileKind { margin-left: auto; color: var(--muted); text-transform: capitalize; }
+.tileDetails .row { display:flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px dashed rgba(255,255,255,0.08); }
+.tileDetails .row:first-of-type { border-top: none; }
+
+/* Wrap to enforce square board and spacing for dice */
+.boardWrap { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.boardMono { width: var(--board-size); height: var(--board-size); margin: 0; padding: 10px; }
+.diceRow { display: flex; align-items: center; gap: 16px; align-self: center; }
+
+/* Position dice inside the board area, offset above bottom */
+.diceTray { bottom: 18px; padding: 8px 14px; gap: 12px; }
+.die { width: 28px; height: 28px; }
+.rollBtn { min-width: 52px; font-size: 12px; }
+
+/* Orientation tweaks for sides */
+.monoTile.bottom { flex-direction: column; }
+.monoTile.bottom .colorBar { top: 0; }
+.monoTile.top { flex-direction: column-reverse; }
+.monoTile.top .colorBar { bottom: 0; }
+.monoTile.left { writing-mode: vertical-rl; text-orientation: mixed; }
+.monoTile.left .index { top: 6px; left: auto; right: 4px; }
+.monoTile.left .colorBar { width: 6px; height: auto; top: 0; bottom: 0; right: 0; left: auto; border-radius: 0 4px 4px 0; }
+.monoTile.right { writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
+.monoTile.right .index { top: 6px; left: 6px; }
+.monoTile.right .colorBar { width: 6px; height: auto; top: 0; bottom: 0; left: 0; right: auto; border-radius: 4px 0 0 4px; }
+
+/* Center */
+.boardCenter {
+  grid-row: 2 / 11;
+  grid-column: 2 / 11;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction: column;
+  background: radial-gradient(600px 300px at 50% 30%, rgba(124,108,255,0.12), transparent), radial-gradient(400px 200px at 40% 60%, rgba(36,209,255,0.12), transparent);
+  border-radius: 12px;
+  border: 1px dashed rgba(255,255,255,0.08);
+}
+.centerLogo { max-width: 68%; max-height: 68%; object-fit: contain; opacity: 0.95; filter: drop-shadow(0 4px 20px rgba(124,108,255,0.25)); }
+.centerMark {
+  font-weight: 800;
+  letter-spacing: 1px;
+  font-size: 28px;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 20px rgba(124,108,255,0.35);
+}
+.centerSub { margin-top: 6px; color: var(--muted); }
+
+/* Dice tray */
+.diceTray {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  z-index: 3;
+  background: rgba(20,24,40,0.92);
+  border-radius: 12px;
+  box-shadow: 0 2px 16px 0 rgba(36,209,255,0.10);
+  padding: 10px 18px;
+  border: 1px solid rgba(124,108,255,0.12);
+}
+.die {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #23243a 60%, #2e2e4a 100%);
+  border-radius: 10px;
+  border: 2px solid #7c6cff44;
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 2px;
+  position: relative;
+  box-shadow: 0 2px 8px 0 rgba(36,209,255,0.10);
+}
+.die.rolling { animation: shake 0.5s linear infinite; }
+@keyframes shake {
+  0% { transform: translate(0,0) rotate(0deg); }
+  20% { transform: translate(-2px,2px) rotate(-2deg); }
+  40% { transform: translate(2px,-2px) rotate(2deg); }
+  60% { transform: translate(-2px,2px) rotate(-2deg); }
+  80% { transform: translate(2px,-2px) rotate(2deg); }
+  100% { transform: translate(0,0) rotate(0deg); }
+}
+.pip {
+  width: 9px;
+  height: 9px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #7c6cff88;
+  margin: auto;
+}
+.pip.pos-1 { grid-row: 1; grid-column: 1; }
+.pip.pos-2 { grid-row: 1; grid-column: 2; }
+.pip.pos-3 { grid-row: 1; grid-column: 3; }
+.pip.pos-4 { grid-row: 2; grid-column: 1; }
+.pip.pos-5 { grid-row: 2; grid-column: 2; }
+.pip.pos-6 { grid-row: 2; grid-column: 3; }
+.pip.pos-7 { grid-row: 3; grid-column: 1; }
+.pip.pos-8 { grid-row: 3; grid-column: 2; }
+.pip.pos-9 { grid-row: 3; grid-column: 3; }
+.rollBtn {
+  margin-left: 10px;
+  min-width: 56px;
+  font-size: 14px;
+}
+
+/* TwoCol panel layout for left-aligned board */
+.panel.twoCol {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+.col.col-left {
+  flex: 0 0 auto;
+  min-width: var(--board-size);
+  max-width: var(--board-size);
+}
+.col.col-right {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+/* Onboarding: tiers */
+.tiersGrid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.tierCard { text-align: left; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: var(--text); cursor: pointer; transition: 160ms ease; }
+.tierCard:hover { border-color: rgba(124,108,255,0.45); box-shadow: var(--glow); }
+.tierCard.active { outline: 2px solid rgba(124,108,255,0.55); box-shadow: 0 0 0 4px rgba(124,108,255,0.12) inset; }
+.tierHeader { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px; }
+.tierName { font-weight: 800; letter-spacing: 0.5px; }
+.tierFee { font-weight: 700; color: #fff; }
+.tierBody .row { display:flex; justify-content: space-between; color: var(--muted); padding: 4px 0; border-top: 1px dashed rgba(255,255,255,0.08); }
+.tierBody .row:first-of-type { border-top: none; }
+
+/* Onboarding: actions */
+.onboardActions { display:flex; align-items: flex-end; gap: 10px; margin-top: 12px; }
+.field { display:flex; flex-direction: column; gap: 6px; color: var(--muted); }
+.field input { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: var(--text); border-radius: 10px; padding: 10px 12px; min-width: 160px; }
+
+/* Onboarding: lobbies */
+.lobbies { display: grid; gap: 10px; }
+.lobbyRow { display:flex; align-items:center; justify-content: space-between; gap: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; }
+.lobbyMain { display:grid; gap: 6px; }
+.lobbyTitle { font-weight: 700; }
+.lobbyMeta { display:flex; gap: 8px; flex-wrap: wrap; color: var(--muted); }
+.lobbyActions { display:flex; gap: 8px; }
+.muted { color: var(--muted); }
+
+/* Ensure play panel fits viewport */
+.panel.twoCol.play { max-height: calc(var(--vhSafe) - 110px); overflow: hidden; }
+.panel.twoCol.play .col.col-right { overflow: auto; max-height: calc(var(--vhSafe) - 150px); padding-right: 4px; }
+
+/* Tighten vertical spacing in play panel */
+.panel.twoCol.play .panelTitle { margin-bottom: 8px; }
+.boardWrap { gap: 10px; }
+.diceRow { gap: 10px; }
+
+/* Reduce bottom padding inside board to minimize extra space */
+.boardMono { padding: 10px 10px 70px 10px; }
+
+/* Overrides: ensure dice are visible without page scroll AND make board a bit larger */
+:root {
+  /* Larger board while still fitting viewport */
+  --board-size: clamp(360px, min(74vw, calc(var(--vhSafe) - 280px)), 980px);
+}
+
+@media (max-width: 1200px) {
+  :root { --board-size: clamp(340px, min(68vw, calc(var(--vhSafe) - 280px)), 900px); }
+}
+@media (max-width: 900px) {
+  :root { --board-size: min(86vw, calc(var(--vhSafe) - 300px)); }
+}
+@media (max-width: 1024px) {
+  .app { grid-template-columns: 1fr; }
+  .sideNav { position: relative; height: auto; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+  .content { padding: 20px; }
+  .hero { grid-template-columns: 1fr; }
+  .hero-cards { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .panel.twoCol { grid-template-columns: 1fr; }
+}
+@media (max-width: 1100px) {
+  .tiersGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 640px) {
+  .tiersGrid { grid-template-columns: 1fr; }
+}
+
+/* Board labels: orientation and clarity */
+/* Reset vertical writing on side tiles and rotate only the label for readability */
+.monoTile.left, .monoTile.right { writing-mode: vertical-rl; text-orientation: mixed; }
+.monoTile.right { transform: rotate(180deg); }
+
+/* Undo absolute centered/rotated labels on sides */
+.monoTile.left .label, .monoTile.right .label {
+  position: static;
+  top: auto; left: auto; transform: none; transform-origin: initial;
+  width: auto; text-align: center; white-space: normal; text-overflow: clip; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; max-width: 100%;
+}
+
+/* Make labels a bit clearer without heavy shadows */
+.monoTile .label { color: #e6ebf5; text-shadow: none; letter-spacing: 0.1px; line-height: 1.06; }
+.monoTile.corner .label { -webkit-line-clamp: 3; line-clamp: 3; }
+
+/* Slightly smaller, more consistent tile text to prevent crowding */
+.monoTile { font-size: clamp(10px, 0.85vw, 12px); }
+.monoTile.corner { font-size: clamp(12px, 1vw, 14px); }
+
+/* Ensure color bars don’t overlap text too tightly */
+.monoTile .colorBar { height: 6px; }
+.monoTile.top .label { margin-bottom: 2px; }
+.monoTile.bottom .label { margin-top: 3px; }
+
+/* Keep indices above labels for clarity */
+.monoTile .index { z-index: 2; }
+
+/* Fine-tune corner tiles label spacing */
+.monoTile.corner .label { margin-top: 4px; }
+
+/* Cleanup: remove duplicate earlier dice tray and boardMono overrides by reaffirming final values at end */
+.boardMono { padding: 10px 10px 78px 10px; }
+.diceTray { bottom: 16px; }
+
+/* --- Tweak label layout for cleaner look --- */
+.monoTile .label { font-size: 0.95em; }
+
+/* Allow up to 3 lines everywhere for better fit */
+.monoTile.top .label, .monoTile.bottom .label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3; line-clamp: 3;
+  text-wrap: balance;
+}
+.monoTile.left .label, .monoTile.right .label {
+  -webkit-line-clamp: 3; line-clamp: 3;
+  letter-spacing: 0;
+}
+
+/* Make index smaller and subtler */
+.monoTile .index { font-size: 9px; color: rgba(255,255,255,0.4); }
+
+/* Slightly more padding to avoid crowding */
+.monoTile { padding: 7px; }
