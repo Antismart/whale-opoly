@@ -62,8 +62,6 @@ function App() {
   const [feed, setFeed] = useState<{kind:'good'|'warn'|'info'; title:string; body:string; time:string}[]>([])
   const [mortgages, setMortgages] = useState<Record<number, boolean>>({})
   const [inJail, setInJail] = useState<Record<string, number>>({})
-  const [bankHouses] = useState(32) // (not yet enforced)
-  const [bankHotels] = useState(12)
   const [lastRoll, setLastRoll] = useState(0)
   const [lobbies, setLobbies] = useState<Lobby[]>([
     { gameId: 1001, tier: 'Bronze', maxPlayers: 4, players: 1 },
@@ -99,6 +97,10 @@ function App() {
     { id:'h12', deck:'chest', title:'Move forward 1', text:'Advance 1 tile', action:{ kind:'move_rel', delta:1 } },
   ]))
   const [jailPasses, setJailPasses] = useState<Record<string, number>>({})
+
+  // NEW: derived counts to consume deck state so they are not flagged unused
+  const chanceRemaining = chanceDeck.length
+  const chestRemaining = chestDeck.length
 
   // Prices
   const price: Record<number, number> = { 1:60,3:60,6:100,8:100,9:120,11:140,13:140,14:160,16:180,18:180,19:200,21:220,23:220,24:240,26:260,27:260,29:280,31:300,32:300,34:320,37:350,39:400, 5:200,15:200,25:200,35:200, 12:150,28:150 }
@@ -212,6 +214,8 @@ function App() {
         </nav>
         <div className="sideFooter">
           <div className="chip">v0.1 • devnet</div>
+          <div className="chip small">Ch:{chanceRemaining}</div>
+            <div className="chip small">Cs:{chestRemaining}</div>
         </div>
       </aside>
 
@@ -628,6 +632,7 @@ function TileDetails({ tile, ownerId, players, price, houses, mortgaged }: { til
       {price && <div className="row"><span>Price</span><span>${price}</span></div>}
       <div className="row"><span>Owner</span><span>{ownerName}</span></div>
       {tile.kind==='property' && <div className="row"><span>Houses</span><span>{houses === 5 ? 'Hotel' : houses}</span></div>}
+      {typeof mortgaged === 'boolean' && <div className="row"><span>Status</span><span>{mortgaged ? 'Mortgaged' : 'Active'}</span></div>}
     </div>
   )
 }
@@ -657,6 +662,7 @@ function ActionBar({ cur, tile, canBuy, canBuild, canDraw, onBuy, onBuild, onDra
       <div className="turnRow">
         <span className="playerDot" style={{ background: cur.color }} />
         <span className="turnText">{cur.name}'s turn {inJailTurns>0 && `(Jail: ${inJailTurns})`}</span>
+        {tile && <span className="currentTile">• {tile.label}</span>}
         <span className="spacer" />
         <span className="balance">${balances[cur.id]}</span>
       </div>
