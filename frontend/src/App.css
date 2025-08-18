@@ -53,10 +53,10 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 .btn.small { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
 
 /* Hero */
-.hero { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; padding: 18px; background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; }
-.hero-copy h1 { font-size: 32px; letter-spacing: 0.5px; margin: 0 0 8px; }
-.hero-copy p { margin: 0 0 12px; color: var(--muted); }
-.cta { display: flex; gap: 10px; margin-top: 10px; }
+.hero { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; }
+.hero-copy h1 { font-size: 26px; letter-spacing: 0.4px; margin: 0 0 6px; }
+.hero-copy p { margin: 0 0 8px; color: var(--muted); }
+.cta { display: flex; gap: 8px; margin-top: 6px; }
 .sparkle { display:inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #fff, rgba(255,255,255,0) 60%), linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 18px rgba(36,209,255,0.65); }
 
 .hero-cards { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
@@ -137,16 +137,18 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   color: var(--muted);
   font-size: 10px;
   text-align:center;
-  min-width: 36px;
-  min-height: 36px;
+  /* Allow tiles to shrink to fit the grid to avoid overlap at small sizes */
+  min-width: 0;
+  min-height: 0;
 }
 .monoTile.corner {
   font-size: 11px;
   font-weight: 700;
   color: #fff;
   justify-content: center;
-  min-width: 54px;
-  min-height: 54px;
+  /* Do not force larger min-size for corners to prevent crossing/overflow */
+  min-width: 0;
+  min-height: 0;
 }
 .monoTile .index {
   position: absolute;
@@ -155,19 +157,18 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   font-size: 10px;
   color: rgba(255,255,255,0.5);
 }
-.monoTile .label { 
-  margin-top: 2px; 
-  line-height: 1.1; 
-  max-width: 96%; 
-  overflow-wrap: anywhere; 
-  hyphens: auto; 
-  word-break: normal; 
-  overflow: hidden; 
-  text-overflow: ellipsis; 
-  display: -webkit-box; 
-  line-clamp: 3;           /* standard */
-  -webkit-line-clamp: 3;   /* webkit */
-  -webkit-box-orient: vertical; 
+.monoTile .label {
+  margin-top: 6px;
+  line-height: 1.12;
+  max-width: 95%;
+  padding: 0 2px 2px 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; line-clamp: 2;
 }
 .monoTile.left .label, .monoTile.right .label { line-clamp: 4; -webkit-line-clamp: 4; }
 
@@ -183,9 +184,9 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 /* Tile states */
 .monoTile.selected { outline: 2px solid rgba(36,209,255,0.6); box-shadow: 0 0 0 3px rgba(36,209,255,0.18) inset; }
 .monoTile .ownerStripe { position: absolute; width: 6px; height: 100%; right: 0; top: 0; border-radius: 0 8px 8px 0; opacity: 0.9; }
-.tokensWrap { position: absolute; bottom: 4px; left: 4px; display: flex; }
+.tokensWrap { position: absolute; bottom: 4px; left: 4px; display: flex; gap: 2px; }
 .token { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.4); box-shadow: 0 0 8px rgba(0,0,0,0.3); }
-.houses { position: absolute; top: 6px; right: 6px; display:flex; gap: 3px; }
+.houses { position: absolute; top: 6px; right: 6px; display:flex; gap: 3px; pointer-events: none; }
 .house { width: 8px; height: 8px; background: #35d07f; border: 1px solid #0f7a45; border-radius: 2px; }
 .hotel { width: 10px; height: 10px; background: #ff5b5b; border: 1px solid #8a2020; border-radius: 2px; }
 .monoTile.mortgaged { filter: grayscale(0.6) brightness(0.85); }
@@ -231,10 +232,10 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 .monoTile.bottom .colorBar { top: 0; }
 .monoTile.top { flex-direction: column-reverse; }
 .monoTile.top .colorBar { bottom: 0; }
-.monoTile.left { writing-mode: vertical-rl; text-orientation: mixed; }
+/* Ensure side tiles use horizontal text to avoid awkward rotations, esp. near corners */
+/* side tiles now standardized later; keep only index and colorBar placement here */
 .monoTile.left .index { top: 6px; left: auto; right: 4px; }
 .monoTile.left .colorBar { width: 6px; height: auto; top: 0; bottom: 0; right: 0; left: auto; border-radius: 0 4px 4px 0; }
-.monoTile.right { writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); }
 .monoTile.right .index { top: 6px; left: 6px; }
 .monoTile.right .colorBar { width: 6px; height: auto; top: 0; bottom: 0; left: 0; right: auto; border-radius: 4px 0 0 4px; }
 
@@ -337,21 +338,12 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   min-width: 0;
 }
 
-/* Onboarding: tiers */
-.tiersGrid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
-.tierCard { text-align: left; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: var(--text); cursor: pointer; transition: 160ms ease; }
-.tierCard:hover { border-color: rgba(124,108,255,0.45); box-shadow: var(--glow); }
-.tierCard.active { outline: 2px solid rgba(124,108,255,0.55); box-shadow: 0 0 0 4px rgba(124,108,255,0.12) inset; }
-.tierHeader { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px; }
-.tierName { font-weight: 800; letter-spacing: 0.5px; }
-.tierFee { font-weight: 700; color: #fff; }
-.tierBody .row { display:flex; justify-content: space-between; color: var(--muted); padding: 4px 0; border-top: 1px dashed rgba(255,255,255,0.08); }
-.tierBody .row:first-of-type { border-top: none; }
+/* Onboarding tiers removed */
 
 /* Onboarding: actions */
-.onboardActions { display:flex; align-items: flex-end; gap: 10px; margin-top: 12px; }
+.onboardActions { display:flex; align-items: flex-end; gap: 8px; margin-top: 10px; }
 .field { display:flex; flex-direction: column; gap: 6px; color: var(--muted); }
-.field input { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: var(--text); border-radius: 10px; padding: 10px 12px; min-width: 160px; }
+.field input { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: var(--text); border-radius: 8px; padding: 8px 10px; min-width: 140px; }
 
 /* Onboarding: lobbies */
 .lobbies { display: grid; gap: 10px; }
@@ -394,17 +386,11 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   .hero-cards { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .panel.twoCol { grid-template-columns: 1fr; }
 }
-@media (max-width: 1100px) {
-  .tiersGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-}
-@media (max-width: 640px) {
-  .tiersGrid { grid-template-columns: 1fr; }
-}
+/* Removed tiersGrid responsive rules */
 
 /* Board labels: orientation and clarity */
-/* Reset vertical writing on side tiles and rotate only the label for readability */
-.monoTile.left, .monoTile.right { writing-mode: vertical-rl; text-orientation: mixed; }
-.monoTile.right { transform: rotate(180deg); }
+/* Ensure side tiles use horizontal text for consistency */
+.monoTile.left, .monoTile.right { writing-mode: horizontal-tb; text-orientation: initial; transform: none; }
 
 /* Undo absolute centered/rotated labels on sides */
 .monoTile.left .label, .monoTile.right .label {
@@ -415,7 +401,9 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 }
 
 /* Make labels a bit clearer without heavy shadows */
-.monoTile .label { color: #e6ebf5; text-shadow: none; letter-spacing: 0.1px; line-height: 1.06; }
+.monoTile .label { color: #f2f4fa; text-shadow: 0 1px 1px rgba(0,0,0,0.18); letter-spacing: 0.15px; }
+.monoTile.top .label, .monoTile.bottom .label { -webkit-line-clamp: 2; line-clamp: 2; }
+.monoTile.left .label, .monoTile.right .label { -webkit-line-clamp: 3; line-clamp: 3; }
 .monoTile.corner .label { -webkit-line-clamp: 3; line-clamp: 3; }
 
 /* Slightly smaller, more consistent tile text to prevent crowding */
@@ -425,35 +413,136 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
 /* Ensure color bars don’t overlap text too tightly */
 .monoTile .colorBar { height: 6px; }
 .monoTile.top .label { margin-bottom: 2px; }
-.monoTile.bottom .label { margin-top: 3px; }
+.monoTile.bottom .label { margin-top: 6px; }
 
 /* Keep indices above labels for clarity */
 .monoTile .index { z-index: 2; }
+/* Style index as a small badge for a cleaner look */
+.monoTile .index {
+  background: rgba(0,0,0,0.35);
+  color: rgba(255,255,255,0.85);
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+/* Avoid index overlapping labels: position index on the opposite edge of the label focus area */
+.monoTile.top .index { top: auto; bottom: 4px; }
+.monoTile.left .index { top: auto; bottom: 4px; right: 4px; left: auto; }
+.monoTile.right .index { top: auto; bottom: 4px; left: 6px; }
+.monoTile.corner .index { top: auto; bottom: 4px; right: 6px; left: auto; }
 
 /* Fine-tune corner tiles label spacing */
-.monoTile.corner .label { margin-top: 4px; }
+.monoTile.corner .label { margin-top: 6px; letter-spacing: 0.25px; text-transform: uppercase; }
+/* Prevent color bars from crossing into corners */
+.monoTile.corner .colorBar { display: none !important; }
 
 /* Cleanup: remove duplicate earlier dice tray and boardMono overrides by reaffirming final values at end */
 .boardMono { padding: 10px 10px 78px 10px; }
 .diceTray { bottom: 16px; }
 
 /* --- Tweak label layout for cleaner look --- */
-.monoTile .label { font-size: 0.95em; }
+.monoTile .label { font-size: 0.96em; }
 
 /* Allow up to 3 lines everywhere for better fit */
-.monoTile.top .label, .monoTile.bottom .label {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3; line-clamp: 3;
-  text-wrap: balance;
-}
-.monoTile.left .label, .monoTile.right .label {
-  -webkit-line-clamp: 3; line-clamp: 3;
-  letter-spacing: 0;
-}
+/* Balanced wrapping for horizontal tiles; slightly more room for vertical sides */
+.monoTile.top .label, .monoTile.bottom .label { text-wrap: balance; }
+.monoTile.left .label, .monoTile.right .label { letter-spacing: 0.05px; }
+
+/* Special kinds: style tweaks for readability */
+.monoTile.kind-property .label { font-weight: 700; letter-spacing: 0.2px; }
+.monoTile.kind-chance .label,
+.monoTile.kind-chest .label { font-weight: 700; letter-spacing: 0.3px; }
+.monoTile.kind-rail .label,
+.monoTile.kind-utility .label { font-variant-caps: small-caps; letter-spacing: 0.25px; }
+.monoTile.kind-tax .label { font-weight: 700; }
+.monoTile.kind-gotojail .label { font-weight: 800; letter-spacing: 0.35px; }
+
+/* Small glyphs for special tiles to aid scanning */
+.monoTile.kind-chance .label::before { content: '❓'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
+.monoTile.kind-chest .label::before { content: '📦'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
+.monoTile.kind-rail .label::before { content: '🚆'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
+.monoTile.kind-utility .label::before { content: '🔌'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
+.monoTile.kind-tax .label::before { content: '💸'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
+
+/* Keep label area clear from color bars: add small padding margin */
+.monoTile.top .label { margin-top: 2px; margin-bottom: 0; }
+.monoTile.bottom .label { margin-top: 4px; }
+.monoTile.left .label, .monoTile.right .label { margin-top: 4px; }
 
 /* Make index smaller and subtler */
 .monoTile .index { font-size: 9px; color: rgba(255,255,255,0.4); }
 
 /* Slightly more padding to avoid crowding */
 .monoTile { padding: 7px; }
+
+/* Corner clarity enhancements */
+.monoTile.corner { position: relative; padding: 10px; font-size: clamp(13px, 1.1vw, 16px); }
+.monoTile.corner .label { margin-top: 6px; font-weight: 800; letter-spacing: 0.2px; }
+.monoTile.corner::after {
+  content: attr(data-corner);
+  position: absolute;
+  font-size: 9px;
+  color: rgba(255,255,255,0.55);
+  bottom: 6px; right: 6px;
+}
+/* Specific corner icons/arrows */
+.monoTile.corner[data-id="0"] .label::before {
+  content: '➤';
+  display: block;
+  font-size: 16px;
+  margin-bottom: 4px;
+  color: var(--good);
+}
+.monoTile.corner[data-id="30"] .label::before {
+  content: '⛓';
+  display: block; font-size: 16px; margin-bottom: 4px; color: var(--warn);
+}
+.monoTile.corner[data-id="10"] .label::before { content: '⛓'; display:block; font-size: 16px; margin-bottom: 4px; color: #a0b3c7; }
+.monoTile.corner[data-id="20"] .label::before { content: '★'; display:block; font-size: 16px; margin-bottom: 4px; color: #ffd166; }
+
+/* Side tile readability: use horizontal text, keep color bars on edges */
+.monoTile.left, .monoTile.right { writing-mode: horizontal-tb; transform: none; }
+.monoTile.left .colorBar { width: 6px; height: auto; position: absolute; top: 0; bottom: 0; right: 0; left: auto; border-radius: 0 8px 8px 0; }
+.monoTile.right .colorBar { width: 6px; height: auto; position: absolute; top: 0; bottom: 0; left: 0; right: auto; border-radius: 8px 0 0 8px; }
+
+/* Emphasize corners with thicker border */
+.monoTile.corner { border-width: 2px; border-color: rgba(124,108,255,0.45); box-shadow: inset 0 0 0 3px rgba(124,108,255,0.12); }
+
+/* Allow longer corner labels without truncation */
+.monoTile.corner .label { -webkit-line-clamp: unset; line-clamp: unset; white-space: normal; }
+
+/* Corner clarity improvements */
+.monoTile.corner .colorBar { display: none; }
+/* Keep same translucent background as other tiles to avoid white-on-white text */
+.monoTile.corner { z-index: 1; background: rgba(255,255,255,0.06); }
+
+/* Emphasize borders around corner tiles to separate from adjacent side tiles */
+.monoTile[data-id="0"] { border-right-width: 4px; border-bottom-width: 4px; }
+.monoTile[data-id="10"] { border-left-width: 4px; border-bottom-width: 4px; }
+.monoTile[data-id="20"] { border-left-width: 4px; border-top-width: 4px; }
+.monoTile[data-id="30"] { border-right-width: 4px; border-top-width: 4px; }
+
+/* Keep color bars from touching corners; add gentle rounding */
+.monoTile.top .colorBar,
+.monoTile.bottom .colorBar {
+  width: calc(100% - 10px);
+  left: 5px;
+  right: 5px;
+  border-radius: 3px;
+}
+.monoTile.left .colorBar,
+.monoTile.right .colorBar {
+  height: calc(100% - 10px);
+  top: 5px;
+  bottom: 5px;
+  border-radius: 3px;
+}
+
+/* Ensure the center panel stays beneath tiles and doesn’t eat clicks */
+.boardCenter { z-index: 0; pointer-events: none; }
+.monoTile { z-index: 1; position: relative; }
+/* Layering: corners highest, horizontal sides above vertical sides */
+.monoTile.corner { z-index: 4; }
+.monoTile.top, .monoTile.bottom { z-index: 3; }
+.monoTile.left, .monoTile.right { z-index: 2; }
