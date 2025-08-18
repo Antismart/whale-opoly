@@ -12,14 +12,8 @@ type GameState = {
   currentIdx: number
 }
 
-// New: Onboarding/Lobby types and game tiers (mirror of contract tiers)
-type Lobby = { gameId: number; tier: 'Bronze'|'Silver'|'Gold'|'Platinum'; maxPlayers: number; players: number }
-const TIERS: { id: Lobby['tier']; feeEth: string; feeWei: string; starting: number; requires: 'Basic'|'Verified'|'Premium'; desc: string }[] = [
-  { id: 'Bronze',   feeEth: '0.01', feeWei: '10000000000000000',    starting: 1500000, requires: 'Basic',   desc: 'Entry tier. Open to all.' },
-  { id: 'Silver',   feeEth: '0.1',  feeWei: '100000000000000000',   starting: 1500000, requires: 'Verified', desc: 'Mid tier. Requires verification > Basic.' },
-  { id: 'Gold',     feeEth: '1',    feeWei: '1000000000000000000',  starting: 1500000, requires: 'Premium', desc: 'High tier. Premium verification.' },
-  { id: 'Platinum', feeEth: '10',   feeWei: '10000000000000000000', starting: 1500000, requires: 'Premium', desc: 'Elite tier. Premium verification.' },
-]
+// Lobby type for simple onboarding (no tiers)
+type Lobby = { gameId: number; host: string; entryEth: string; maxPlayers: number; players: number }
 
 // --- Card system types ---
 type CardAction =
@@ -41,7 +35,7 @@ function shuffle<T>(arr: T[]): T[] { return [...arr].sort(()=>Math.random()-0.5)
 
 function App() {
   // --- Core state ---
-  const [section, setSection] = useState<'onboard'|'dashboard'|'play'|'treasury'|'events'>('onboard')
+  const [section, setSection] = useState<'onboard'|'dashboard'|'play'|'events'>('onboard')
   const [game, setGame] = useState<GameState>({
     players: [
       { id: 'P1', name: 'Blue', color: '#4da3ff' },
@@ -64,8 +58,8 @@ function App() {
   const [inJail, setInJail] = useState<Record<string, number>>({})
   const [lastRoll, setLastRoll] = useState(0)
   const [lobbies, setLobbies] = useState<Lobby[]>([
-    { gameId: 1001, tier: 'Bronze', maxPlayers: 4, players: 1 },
-    { gameId: 1002, tier: 'Silver', maxPlayers: 6, players: 2 },
+    { gameId: 1001, host: 'Alice', entryEth: '0.10', maxPlayers: 4, players: 1 },
+    { gameId: 1002, host: 'Bob', entryEth: '0.25', maxPlayers: 6, players: 2 },
   ])
   const [openCard, setOpenCard] = useState<Card | undefined>()
   const [chanceDeck, setChanceDeck] = useState<Card[]>(() => shuffle([
@@ -203,10 +197,6 @@ function App() {
             <span className="icon" aria-hidden>{BoardIcon}</span>
             <span>Play</span>
           </button>
-          <button className={`navItem ${section==='treasury'?'active':''}`} onClick={()=>setSection('treasury')}>
-            <span className="icon" aria-hidden>{TreasuryIcon}</span>
-            <span>Treasury</span>
-          </button>
           <button className={`navItem ${section==='events'?'active':''}`} onClick={()=>setSection('events')}>
             <span className="icon" aria-hidden>{EventIcon}</span>
             <span>Events</span>
@@ -238,60 +228,106 @@ function App() {
                   Stake, Join, Conquer
                   <span className="sparkle"/>
                 </h1>
-                <p>Select a game tier, stake the entry fee, and enter a lobby. Funds are pooled into the Treasury Hot Wallet; winners are paid per Game Manager rules.</p>
+                <p>Create a lobby or join one. That’s it.</p>
                 <div className="cta">
-                  <button className="btn glow" onClick={()=>{ /* focus tiers */ }}>Choose a tier</button>
-                  <button className="btn outline" onClick={()=>setSection('play')}>Preview board</button>
-                </div>
-              </div>
-              <div className="hero-cards">
-                <div className="statCard">
-                  <div className="statLabel">Max players</div>
-                  <div className="statValue">6</div>
-                </div>
-                <div className="statCard">
-                  <div className="statLabel">Min players</div>
-                  <div className="statValue">2</div>
-                </div>
-                <div className="statCard">
-                  <div className="statLabel">Verification</div>
-                  <div className="statValue">Tier‑based</div>
-                </div>
-                <div className="statCard">
-                  <div className="statLabel">Start delay</div>
-                  <div className="statValue">30s</div>
+                  <button className="btn outline" onClick={()=>setSection('play')}>Try the board</button>
                 </div>
               </div>
             </section>
 
             <OnboardPanel
               lobbies={lobbies}
-              onCreate={(tier,max)=>{
+              onCreate={(maxPlayers, host, entryEth)=>{
                 const id = Date.now()%100000
-                setLobbies(prev=>[{ gameId:id, tier, maxPlayers:max, players:1 }, ...prev])
-                log('good','Lobby created', `${tier} • max ${max} players • game_id ${id}`)
-                // Ref: IGameManager.create_game(tier, max_players) -> emits GameCreated, pools entry_fee
+                setLobbies(prev=>[{ gameId:id, host, entryEth, maxPlayers, players:1 }, ...prev])
+                log('good','Lobby created', `${host} • entry ${entryEth} ETH • max ${maxPlayers} • game_id ${id}`)
               }}
-              onJoin={(gameId,tier)=>{
-                // Ref: IGameManager.join_game(game_id) -> validates verification + stakes entry_fee -> PlayerJoined
-                log('good','Staked & joined', `${tier} • game_id ${gameId} (entry ${TIERS.find(t=>t.id===tier)?.feeEth} ETH)`) 
+              onJoin={(gameId, username)=>{
+                log('good','Joined game', `${username} • game_id ${gameId}`)
                 setSection('play')
               }}
             />
 
-            <section className="panel">
-              <div className="panelTitle">
-                <span className="icon" aria-hidden>{TreasuryIcon}</span>
-                How staking works
-              </div>
-              <div className="tileDetails">
-                <div className="row"><span>Entry fees</span><span>Per GameTier (Bronze 0.01, Silver 0.1, Gold 1, Platinum 10 ETH)</span></div>
-                <div className="row"><span>Verification</span><span>Silver+ requires &gt; Basic; Gold/Platinum require Premium</span></div>
-                <div className="row"><span>Treasury</span><span>Entry fees credit the Hot Wallet; prize splits 60/25/10/3/2%</span></div>
-                <div className="row"><span>Start</span><span>Lobby starts when min players reached; 30s delay</span></div>
-              </div>
-            </section>
+            {/* Removed verbose staking explainer to keep onboarding direct */}
           </>
+        )}
+
+        {section==='dashboard' && (
+          <section className="panel twoCol">
+            <div className="col col-left">
+              <div className="panelTitle">
+                <span className="icon" aria-hidden>{BoardIcon}</span>
+                Dashboard overview
+              </div>
+              {(() => {
+                const ownedCount = Object.values(game.ownership).filter(Boolean).length
+                const housesBuilt = Object.values(game.houses).reduce((a, c) => a + (c || 0), 0)
+                const cashTotal = Object.values(game.balances).reduce((a, c) => a + (c || 0), 0)
+                return (
+                  <div className="statsGrid">
+                    <div className="stat"><div className="statLabel">Open lobbies</div><div className="statValue">{lobbies.length}</div></div>
+                    <div className="stat"><div className="statLabel">Players</div><div className="statValue">{game.players.length}</div></div>
+                    <div className="stat"><div className="statLabel">Owned tiles</div><div className="statValue">{ownedCount}</div></div>
+                    <div className="stat"><div className="statLabel">Houses built</div><div className="statValue">{housesBuilt}</div></div>
+                    <div className="stat"><div className="statLabel">Cash total</div><div className="statValue">${cashTotal}</div></div>
+                    <div className="stat"><div className="statLabel">Cards left</div><div className="statValue">Ch {chanceRemaining} • Cs {chestRemaining}</div></div>
+                  </div>
+                )
+              })()}
+
+              <div className="panelTitle" style={{ marginTop: 16 }}>
+                <span className="icon" aria-hidden>{EventIcon}</span>
+                Open lobbies
+              </div>
+              <div className="lobbies">
+                {lobbies.length===0 && <div className="muted">No open lobbies yet.</div>}
+                {lobbies.slice(0,3).map(l => (
+                  <div key={l.gameId} className="lobbyRow">
+                    <div className="lobbyMain">
+                      <div className="lobbyTitle">Game #{l.gameId}</div>
+                      <div className="lobbyMeta">
+                        <span className="chip">{l.players}/{l.maxPlayers} players</span>
+                        <span className="chip">entry {l.entryEth} ETH</span>
+                        <span className="chip">host {l.host}</span>
+                      </div>
+                    </div>
+                    <div className="lobbyActions">
+                      <button className="btn outline" onClick={()=>setSection('onboard')}>Open Onboard</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="col col-right">
+              <div className="panelTitle">
+                <span className="icon" aria-hidden>{EventIcon}</span>
+                Recent activity
+              </div>
+              <div className="feed">
+                {feed.slice(0,5).map((f, idx) => (
+                  <div key={idx} className={`feedItem ${f.kind}`}>
+                    <div className="feedHeader">
+                      <span className="dot"/>
+                      <span className="feedTitle">{f.title}</span>
+                      <span className="time">{f.time}</span>
+                    </div>
+                    <div className="feedBody">{f.body}</div>
+                  </div>
+                ))}
+                {feed.length===0 && <div className="muted">No activity yet.</div>}
+              </div>
+
+              <div className="panelTitle" style={{ marginTop: 16 }}>
+                <span className="icon" aria-hidden>{EventIcon}</span>
+                Current game players
+              </div>
+              <PlayersPanel players={game.players} balances={game.balances} positions={game.positions} currentIdx={game.currentIdx} />
+
+              <div className="btnRow" style={{ marginTop: 12 }}>
+                <button className="btn glow" onClick={()=>setSection('play')}>Go to board</button>
+              </div>
+            </div>
+          </section>
         )}
 
         {section==='play' && (
@@ -372,32 +408,7 @@ function App() {
           </section>
         )}
 
-        {section==='treasury' && (
-          <section className="panel">
-            <div className="panelTitle">
-              <span className="icon" aria-hidden>{TreasuryIcon}</span>
-              Treasury multisig queue
-            </div>
-            <div className="queue">
-              {mockQueue.map((q, idx) => (
-                <div key={idx} className="queueItem">
-                  <div className="qMain">
-                    <div className="qTitle">{q.title}</div>
-                    <div className="qMeta">
-                      <span className="chip">{q.amount} STRK</span>
-                      <span className="chip">{q.approvals}/{q.threshold} approvals</span>
-                      <span className="chip warn">expires {q.expires}</span>
-                    </div>
-                  </div>
-                  <div className="qActions">
-                    <button className="btn small outline">Details</button>
-                    <button className="btn small glow">Approve</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+  {/* Treasury UI removed */}
 
         {/* ...existing code for other sections (events/dashboard) can be added similarly ... */}
 
@@ -492,15 +503,17 @@ function MonopolyBoard({ players, positions, ownership, houses, selected, onSele
   function tileStyle(id: number, side: 'bottom'|'left'|'top'|'right', baseRow: number, baseCol: number) {
     const isCorner = id === 0 || id === 10 || id === 20 || id === 30
     if (isCorner) {
-      if (id === 0) return { gridRow: '10 / span 2', gridColumn: '10 / span 2' } as React.CSSProperties
-      if (id === 10) return { gridRow: '10 / span 2', gridColumn: '1 / span 2' } as React.CSSProperties
-      if (id === 20) return { gridRow: '1 / span 2', gridColumn: '1 / span 2' } as React.CSSProperties
-      return { gridRow: '1 / span 2', gridColumn: '10 / span 2' } as React.CSSProperties
+      // Use single-cell corners to avoid any crossing with side tiles
+      if (id === 0) return { gridRow: 11, gridColumn: 11 } as React.CSSProperties
+      if (id === 10) return { gridRow: 11, gridColumn: 1 } as React.CSSProperties
+      if (id === 20) return { gridRow: 1, gridColumn: 1 } as React.CSSProperties
+      return { gridRow: 1, gridColumn: 11 } as React.CSSProperties
     }
-    if (side === 'bottom') return { gridRow: '10 / span 2', gridColumn: baseCol } as React.CSSProperties
-    if (side === 'top') return { gridRow: '1 / span 2', gridColumn: baseCol } as React.CSSProperties
-    if (side === 'left') return { gridRow: baseRow, gridColumn: '1 / span 2' } as React.CSSProperties
-    return { gridRow: baseRow, gridColumn: '10 / span 2' } as React.CSSProperties
+    // Place sides on outermost single row/column
+    if (side === 'bottom') return { gridRow: 11, gridColumn: baseCol } as React.CSSProperties
+    if (side === 'top') return { gridRow: 1, gridColumn: baseCol } as React.CSSProperties
+    if (side === 'left') return { gridRow: baseRow, gridColumn: 1 } as React.CSSProperties
+    return { gridRow: baseRow, gridColumn: 11 } as React.CSSProperties
   }
 
   return (
@@ -510,13 +523,22 @@ function MonopolyBoard({ players, positions, ownership, houses, selected, onSele
           const { row, col, side } = toGrid(t.id)
           const isCorner = t.id === 0 || t.id === 10 || t.id === 20 || t.id === 30
           const isMort = !!(mortgages && mortgages[t.id])
-          const classNames = ['monoTile', side, isCorner ? 'corner' : '', selected===t.id?'selected':'', isMort?'mortgaged':''].filter(Boolean).join(' ')
+          const classNames = ['monoTile', side, isCorner ? 'corner' : '', selected===t.id?'selected':'', isMort?'mortgaged':'', `kind-${t.kind}`].filter(Boolean).join(' ')
           const style = tileStyle(t.id, side, row, col)
           const ownerId = ownership[t.id]
           const tileHouses = houses[t.id] || 0
           const tilePlayers = players.filter(p => positions[p.id] === t.id)
           return (
-            <button key={t.id} className={classNames} style={style} onClick={() => onSelect(t.id)}>
+            <button
+              key={t.id}
+              className={classNames}
+              style={style}
+              onClick={() => onSelect(t.id)}
+              data-id={t.id}
+              data-corner={isCorner ? t.label : undefined}
+              data-side={side}
+              data-kind={t.kind}
+            >
               {t.color && <span className="colorBar" style={{ background: t.color }} />}
               <span className="index">{t.id}</span>
               <span className="label">{t.label}</span>
@@ -570,10 +592,7 @@ function toGrid(i: number): { row: number; col: number; side: 'bottom'|'left'|'t
   return { row: i - 29, col: 11, side: 'right' }
 }
 
-const mockQueue = [
-  { title: 'Research grant payout', amount: 4200, approvals: 2, threshold: 3, expires: 'in 3h' },
-  { title: 'Emergency liquidity', amount: 15000, approvals: 1, threshold: 4, expires: 'in 12h' },
-]
+// Treasury mock queue removed
 
 const DiceIcon = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -590,13 +609,7 @@ const BoardIcon = (
   </svg>
 )
 
-const TreasuryIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M4 7h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" stroke="currentColor" strokeWidth="1.5"/>
-    <path d="M2 7h20" stroke="currentColor" strokeWidth="1.5"/>
-    <circle cx="12" cy="12" r="2" stroke="currentColor" strokeWidth="1.5"/>
-  </svg>
-)
+// Treasury icon removed
 
 const EventIcon = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -681,36 +694,30 @@ function ActionBar({ cur, tile, canBuy, canBuild, canDraw, onBuy, onBuild, onDra
   )
 }
 
-function OnboardPanel({ lobbies, onCreate, onJoin }:{ lobbies: Lobby[]; onCreate: (tier: Lobby['tier'], maxPlayers: number)=>void; onJoin: (gameId: number, tier: Lobby['tier'])=>void }) {
-  const [tier, setTier] = useState<Lobby['tier']>('Bronze')
+function OnboardPanel({ lobbies, onCreate, onJoin }:{ lobbies: Lobby[]; onCreate: (maxPlayers: number, host: string, entryEth: string)=>void; onJoin: (gameId: number, username: string)=>void }) {
   const [maxPlayers, setMaxPlayers] = useState(4)
+  const [username, setUsername] = useState('')
+  const [entryEth, setEntryEth] = useState('0.10')
   return (
     <section className="panel">
       <div className="panelTitle">
         <span className="icon" aria-hidden>{BoardIcon}</span>
-        Onboard & stake
-      </div>
-      <div className="tiersGrid">
-        {TIERS.map(t => (
-          <button key={t.id} className={`tierCard ${tier===t.id?'active':''}`} onClick={()=>setTier(t.id)}>
-            <div className="tierHeader">
-              <div className="tierName">{t.id}</div>
-              <div className="tierFee">{t.feeEth} ETH</div>
-            </div>
-            <div className="tierBody">
-              <div className="row"><span>Starting</span><span>${t.starting.toLocaleString()}</span></div>
-              <div className="row"><span>Requires</span><span>{t.requires}</span></div>
-              <div className="row"><span>Notes</span><span>{t.desc}</span></div>
-            </div>
-          </button>
-        ))}
+    Create or join a lobby
       </div>
       <div className="onboardActions">
         <label className="field">
-          <span>Max players (2–6)</span>
+          <span>Your username</span>
+          <input type="text" placeholder="e.g. WhaleLord" value={username} onChange={(e)=>setUsername(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Entry amount (ETH)</span>
+          <input type="number" min={0} step={0.01} value={entryEth} onChange={(e)=>setEntryEth(e.target.value)} />
+        </label>
+        <label className="field">
+      <span>Max players</span>
           <input type="number" min={2} max={6} value={maxPlayers} onChange={(e)=>setMaxPlayers(Math.max(2, Math.min(6, Number(e.target.value)||4)))} />
         </label>
-        <button className="btn glow" onClick={()=>onCreate(tier, maxPlayers)}>Create lobby</button>
+        <button className="btn glow" disabled={!username || Number(entryEth)<=0} onClick={()=>onCreate(maxPlayers, username.trim(), entryEth)}>Create lobby</button>
       </div>
       <div className="panelTitle" style={{marginTop:16}}>Open lobbies</div>
       <div className="lobbies">
@@ -720,13 +727,13 @@ function OnboardPanel({ lobbies, onCreate, onJoin }:{ lobbies: Lobby[]; onCreate
             <div className="lobbyMain">
               <div className="lobbyTitle">Game #{l.gameId}</div>
               <div className="lobbyMeta">
-                <span className="chip">{l.tier}</span>
                 <span className="chip">{l.players}/{l.maxPlayers} players</span>
-                <span className="chip">entry {TIERS.find(t=>t.id===l.tier)?.feeEth} ETH</span>
+                <span className="chip">entry {l.entryEth} ETH</span>
+                <span className="chip">host {l.host}</span>
               </div>
             </div>
             <div className="lobbyActions">
-              <button className="btn outline" onClick={()=>onJoin(l.gameId, l.tier)}>Stake & Join</button>
+              <button className="btn outline" disabled={!username} onClick={()=>onJoin(l.gameId, username.trim())}>Join</button>
             </div>
           </div>
         ))}
