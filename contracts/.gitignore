@@ -1,2 +1,5 @@
 target
 dojo_mainnet.toml
+
+# Do not commit environment files
+.env*

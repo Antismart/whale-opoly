@@ -201,3 +201,15 @@ sozo migrate --namespaces whale_opoly
 
 **Status**: ✅ Ready for deployment to Sepolia testnet
 **Last Updated**: August 3, 2025
+
+## 📡 Current Sepolia Deployment (Recorded)
+
+- World address: `0x0161d03d910b012924b640a5117015289aaf9a36a856b204cd91b835ba60d9bb`
+- World deployed block: `1590090`
+- Torii indexer URL: `https://api.cartridge.gg/x/whale-opoly/torii`
+- RPC: `https://api.cartridge.gg/x/starknet/sepolia`
+
+Tips:
+- Tail logs: `slot deployments logs whale-opoly torii -f`
+- Recreate Torii (let Slot pick a compatible version):
+    - `slot deployments create whale-opoly torii --world <world> --rpc <rpc> --indexing.world_block <block> --runner.check_contracts`

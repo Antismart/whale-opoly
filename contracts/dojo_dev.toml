@@ -18,16 +18,24 @@ default = "whale_opoly"
 [env]
  
  # Sepolia testnet configuration
-rpc_url = "https://api.cartridge.gg/x/starknet/sepolia"
 # You'll need to add your own testnet account credentials here
-# account_address = "YOUR_SEPOLIA_ACCOUNT_ADDRESS"
-# private_key = "YOUR_SEPOLIA_PRIVATE_KEY"
+account_address = "0x0793861c40acA86f0E36a909CB4Ec253adF5874ac8c4F5D4FfbAF361BE9D6B98"
+private_key = "0x015e6cd12ffdf5fe6d158e3c1d1dc131535acba48ce9408b0cc308a2b9a7f821"
 
 # Local development configuration (commented out)
-# rpc_url = "http://localhost:5050/"
-# account_address = "0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec"
-# private_key = "0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912"
+# Local development configuration (Katana)
+# rpc_url = "http://127.0.0.1:5050/"
+# Optional: fill these with a Katana predeployed account if needed for txs
+# account_address = "0x6677fe62ee39c7b07401f754138502bab7fac99d2d3c5d37df7d1c6fab10819"
+# private_key = "0x3e3979c1ed728490308054fe357a9f49cf67f80f9721f44cc57235129e090f4"
+
+# Sepolia testnet configuration (commented out for local dev)
+rpc_url = "https://starknet-sepolia.public.blastapi.io"
+# account_address = "YOUR_SEPOLIA_ACCOUNT_ADDRESS"
+# private_key = "YOUR_SEPOLIA_PRIVATE_KEY"
 # world_address = "0x06171ed98331e849d6084bf2b3e3186a7ddf35574dd68cab4691053ee8ab69d7"
+world_address ="0x0161d03d910b012924b640a5117015289aaf9a36a856b204cd91b835ba60d9bb"
+world_block = 1590090
 
 [writers]
 "whale_opoly" = ["whale_opoly-game_manager", "whale_opoly-board_actions", "whale_opoly-property_management", "whale_opoly-treasury", "whale_opoly-random_engine", "whale_opoly-security_simple"]
