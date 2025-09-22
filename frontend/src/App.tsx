@@ -168,10 +168,18 @@ function App() {
     } catch (error) {
       console.error('Create game failed:', error);
       console.error('Error details:', error instanceof Error ? error.message : String(error));
-      
+
       // Remove the optimistic lobby on failure
       setLocalLobbies(prev => prev.filter(lobby => lobby.gameId !== gameId));
-      
+
+      // Check if user cancelled the transaction
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('USER_REFUSED_OP') || errorMessage.includes('user rejected')) {
+        log('info', '❌ Transaction Cancelled', 'You cancelled the transaction. No lobby was created.');
+      } else {
+        log('warn', '⚠️ Transaction Failed', 'Failed to create lobby. Please try again.');
+      }
+
       return null;
     }
   };
@@ -201,17 +209,23 @@ function App() {
       return { success: true };
     } catch (error) {
       console.error('Join game failed:', error);
-      
+
       // Revert the optimistic update on failure
-      setLocalLobbies(prev => 
-        prev.map(lobby => 
-          lobby.gameId === gameId 
+      setLocalLobbies(prev =>
+        prev.map(lobby =>
+          lobby.gameId === gameId
             ? { ...lobby, players: Math.max(1, lobby.players - 1) }
             : lobby
         )
       );
-      
-      log('warn', 'Join Failed', 'Could not join the game. Please try again.');
+
+      // Check if user cancelled the transaction
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('USER_REFUSED_OP') || errorMessage.includes('user rejected')) {
+        log('info', '❌ Transaction Cancelled', 'You cancelled the join request.');
+      } else {
+        log('warn', 'Join Failed', 'Could not join the game. Please try again.');
+      }
       return null;
     }
   };
@@ -253,13 +267,13 @@ function App() {
   useEffect(() => {
     const interval = setInterval(refreshLobbies, 30000);
     return () => clearInterval(interval);
-  }, [blockchainLobbies]);
+  }, [blockchainLobbies, refreshLobbies]);
 
   // Update function for optimistic updates (optional)
-  const updateGame = (_updater: (g: typeof game) => typeof game) => {
+  const updateGame = (updater?: (g: any) => any) => {
     // Since we're using real Dojo data, we don't need local updates
     // The Zustand store will update automatically when blockchain state changes
-    console.log('Game update will reflect from blockchain via Dojo subscriptions');
+    console.log('Game update will reflect from blockchain via Dojo subscriptions', updater ? 'with updater' : '');
   };
   
   // --- Core state ---
@@ -336,8 +350,8 @@ function App() {
       case 'move_rel': { const from=game.positions[pid]; const to=(from+action.delta+40)%40; updateGame(g=>({...g, positions:{...g.positions,[pid]:to}})); setSelected(to); log('info',card.title,card.text); break }
       case 'goto_jail': { updateGame(g=>({...g, positions:{...g.positions,[pid]:10}})); setInJail(j=>({...j,[pid]:3})); setSelected(10); log('warn','Jail','3 turns or pay $50'); break }
       case 'jail_pass': { setJailPasses(p=>({...p,[pid]:(p[pid]||0)+1})); log('good','Jail Pass acquired','Stored until needed'); break }
-      case 'collect_each': { updateGame(g=>{ let delta=0; const up={...g.balances}; g.players.forEach(pl=>{ if(pl.id!==pid){ up[pl.id]-=action.amount; delta+=action.amount } }); up[pid]+=delta; return {...g, balances:up} }); log('good',card.title,`+$${action.amount} from each`); break }
-      case 'pay_each': { updateGame(g=>{ let cost=0; g.players.forEach(pl=>{ if(pl.id!==pid) cost+=action.amount }); return {...g, balances:{...g.balances,[pid]:g.balances[pid]-cost}} }); log('warn',card.title,`-$${action.amount} to each`); break }
+      case 'collect_each': { updateGame(g=>{ let delta=0; const up={...g.balances}; g.players.forEach((pl: any)=>{ if(pl.id!==pid){ up[pl.id]-=action.amount; delta+=action.amount } }); up[pid]+=delta; return {...g, balances:up} }); log('good',card.title,`+$${action.amount} from each`); break }
+      case 'pay_each': { updateGame(g=>{ let cost=0; g.players.forEach((pl: any)=>{ if(pl.id!==pid) cost+=action.amount }); return {...g, balances:{...g.balances,[pid]:g.balances[pid]-cost}} }); log('warn',card.title,`-$${action.amount} to each`); break }
       case 'nearest_rail': { const to=nearest(game.positions[pid],[5,15,25,35]); updateGame(g=>({...g, positions:{...g.positions,[pid]:to}})); setSelected(to); log('info',card.title,`Moved to Rail ${to}`); break }
       case 'nearest_utility': { const to=nearest(game.positions[pid],[12,28]); updateGame(g=>({...g, positions:{...g.positions,[pid]:to}})); setSelected(to); log('info',card.title,`Moved to Utility ${to}`); break }
       case 'repair': { const housesCount=Object.entries(game.houses).reduce((a,[,c])=>a+(c&&c<5?c:0),0); const hotelsCount=Object.entries(game.houses).reduce((a,[,c])=>a+(c===5?1:0),0); const cost=housesCount*action.perHouse+hotelsCount*action.perHotel; if(cost>0) updateGame(g=>({...g, balances:{...g.balances,[pid]:g.balances[pid]-cost}})); log('warn',card.title,`-$${cost}`); break }
@@ -509,12 +523,21 @@ function App() {
                   if (result?.success && result?.transactionHash) {
                     // Success message is already shown by createLobby function
                     log('info','🚀 Lobby Broadcasting...', 'Your game is now live on-chain! Other players can discover and join your lobby.');
+                  } else if (result === null) {
+                    // Transaction was cancelled or failed - error already logged in createLobby
+                    return;
                   } else {
-                    throw new Error('Failed to create lobby');
+                    log('warn','⚠️ Unexpected Error', 'Something unexpected happened. Please try again.');
                   }
                 } catch (error) {
                   console.error('Failed to create lobby:', error);
-                  log('warn','Lobby Creation Failed', 'Please check your wallet connection and try again.');
+                  // Additional fallback error handling
+                  const errorMessage = error instanceof Error ? error.message : String(error);
+                  if (errorMessage.includes('USER_REFUSED_OP') || errorMessage.includes('user rejected')) {
+                    log('info', '❌ Transaction Cancelled', 'You cancelled the lobby creation.');
+                  } else {
+                    log('warn','Lobby Creation Failed', 'Please check your wallet connection and try again.');
+                  }
                 }
               }}
               onJoin={async (gameId, username)=>{
@@ -524,12 +547,21 @@ function App() {
                     log('good','Joined game via Dojo', `${username} • game_id ${gameId}`);
                     setCurrentGameId(gameId);
                     setSection('play');
+                  } else if (result === null) {
+                    // Transaction was cancelled or failed - error already logged in joinLobby
+                    return;
                   } else {
-                    throw new Error('Failed to join lobby');
+                    log('warn','Unexpected Error', 'Something unexpected happened. Please try again.');
                   }
                 } catch (error) {
                   console.error('Failed to join lobby:', error);
-                  log('warn','Join failed', 'Check connection');
+                  // Additional fallback error handling
+                  const errorMessage = error instanceof Error ? error.message : String(error);
+                  if (errorMessage.includes('USER_REFUSED_OP') || errorMessage.includes('user rejected')) {
+                    log('info', '❌ Transaction Cancelled', 'You cancelled the join request.');
+                  } else {
+                    log('warn','Join failed', 'Check connection and try again.');
+                  }
                 }
               }}
             />

@@ -169,7 +169,7 @@ export function useDojoContracts() {
       
       // Add more contract functions as needed
     };
-  }, [sdk, account, isConnected]);
+  }, [sdk, account, isConnected, coreProvider]);
   
   return contracts;
 }
