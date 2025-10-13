@@ -11,6 +11,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@cartridge/connector": "^0.10.7",
+    "@cartridge/controller": "^0.10.7",
     "@dojoengine/core": "^1.6.4",
     "@dojoengine/create-burner": "^1.6.4",
     "@dojoengine/grpc": "^1.6.4",
