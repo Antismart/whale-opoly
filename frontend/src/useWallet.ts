@@ -5,17 +5,22 @@ export function useWallet() {
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
 
+
   const isConnected = status === 'connected';
   const isConnecting = status === 'connecting';
   const isDisconnected = status === 'disconnected';
 
   const connectWallet = async (connectorId?: string) => {
-    const connector = connectorId 
+    const connector = connectorId
       ? connectors.find(c => c.id === connectorId)
       : connectors[0]; // Default to first available connector
-    
+
     if (connector) {
-      await connect({ connector });
+      try {
+        await connect({ connector });
+      } catch (error) {
+        console.error('Connection error:', error);
+      }
     }
   };
 
