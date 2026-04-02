@@ -203,6 +203,8 @@ pub mod treasury {
             let depositor = get_caller_address();
             let current_time = get_block_timestamp();
 
+            // TODO: TreasuryAccess is never initialized — see withdraw_funds TODO.
+            // This will always revert until an admin setup path writes the record.
             // Check access permissions
             let access: TreasuryAccess = world.read_model(depositor);
             assert!(access.can_deposit, "No deposit permission");
@@ -248,6 +250,18 @@ pub mod treasury {
             let mut world = self.world_default();
             let caller = get_caller_address();
             let current_time = get_block_timestamp();
+
+            // TODO: TreasuryAccess is never initialized for any address. There is no
+            // grant_access / initialize function in this contract, so read_model will
+            // return a default-zero struct where every bool is false. This means
+            // withdraw_funds will *always* revert with "No withdrawal permission" for
+            // every caller until a TreasuryAccess record is explicitly written.
+            // A setup / admin function that initialises TreasuryAccess for authorized
+            // addresses (or a constructor that seeds the deployer's access) is needed.
+            //
+            // Note: the game_manager's _update_treasury_balance and _distribute_prizes
+            // bypass this check entirely by writing TreasuryBalance directly, which is
+            // acceptable because the game_manager IS the authorized internal depositor.
 
             // Check access permissions
             let access: TreasuryAccess = world.read_model(caller);
@@ -299,12 +313,12 @@ pub mod treasury {
                 return false;
             }
 
-            // Get current balance
+            // Check daily limits (may reset daily_spent for a new day and persist)
+            assert!(self._check_daily_limit(balance_type, amount), "Daily limit exceeded");
+
+            // Re-read balance after daily limit check (it may have been reset)
             let mut balance: TreasuryBalance = world.read_model(balance_type);
             assert!(balance.amount >= amount, "Insufficient funds");
-
-            // Check daily limits
-            assert!(self._check_daily_limit(balance_type, amount), "Daily limit exceeded");
 
             // Update balance and daily spent
             balance.amount -= amount;
@@ -488,20 +502,50 @@ pub mod treasury {
         fn check_daily_limits(self: @ContractState, balance_type: BalanceType) -> (u256, u256) {
             let world = self.world_default();
             let balance: TreasuryBalance = world.read_model(balance_type);
-            (balance.daily_limit, balance.daily_spent)
+
+            // Return effective daily_spent (zero if a new day has started)
+            let current_time = get_block_timestamp();
+            let seconds_per_day: u64 = 86400;
+            let last_update_day = balance.last_updated / seconds_per_day;
+            let current_day = current_time / seconds_per_day;
+
+            let effective_spent = if current_day > last_update_day {
+                0_u256
+            } else {
+                balance.daily_spent
+            };
+
+            (balance.daily_limit, effective_spent)
         }
 
         fn is_withdrawal_allowed(self: @ContractState, balance_type: BalanceType, amount: u256) -> bool {
             let world = self.world_default();
             let balance: TreasuryBalance = world.read_model(balance_type);
-            
+
             // Check sufficient funds
             if balance.amount < amount {
                 return false;
             }
 
+            // TODO: This view function cannot reset daily_spent on a new day
+            // (immutable self). If called after midnight before any withdrawal
+            // has triggered _check_daily_limit, it may report a stale
+            // daily_spent and incorrectly return false. Callers should treat
+            // this as a best-effort hint; the actual enforcement happens inside
+            // withdraw_funds / approve_withdrawal via _check_daily_limit.
+            let current_time = get_block_timestamp();
+            let seconds_per_day: u64 = 86400;
+            let last_update_day = balance.last_updated / seconds_per_day;
+            let current_day = current_time / seconds_per_day;
+
+            let effective_spent = if current_day > last_update_day {
+                0_u256
+            } else {
+                balance.daily_spent
+            };
+
             // Check daily limit
-            if balance.daily_spent + amount > balance.daily_limit {
+            if effective_spent + amount > balance.daily_limit {
                 return false;
             }
 
@@ -602,10 +646,12 @@ pub mod treasury {
 
             // Execute if threshold reached
             if req.approved_by.len() >= req.required_approvals.into() {
-                // Perform the withdrawal
+                // Check daily limits (may reset daily_spent for a new day and persist)
+                assert!(self._check_daily_limit(req.balance_type, req.amount), "Daily limit exceeded");
+
+                // Re-read balance after daily limit check (it may have been reset)
                 let mut balance: TreasuryBalance = world.read_model(req.balance_type);
                 assert!(balance.amount >= req.amount, "Insufficient funds");
-                assert!(self._check_daily_limit(req.balance_type, req.amount), "Daily limit exceeded");
 
                 balance.amount -= req.amount;
                 balance.daily_spent += req.amount;
@@ -669,19 +715,25 @@ pub mod treasury {
             }
         }
 
-        fn _check_daily_limit(self: @ContractState, balance_type: BalanceType, amount: u256) -> bool {
-            let world = self.world_default();
-            let balance: TreasuryBalance = world.read_model(balance_type);
-            
+        /// Check whether a withdrawal of `amount` is within the daily limit for
+        /// the given balance.  When a new calendar day is detected the
+        /// accumulated `daily_spent` is reset to zero **and persisted** so that
+        /// subsequent calls within the same day see the correct running total.
+        fn _check_daily_limit(ref self: ContractState, balance_type: BalanceType, amount: u256) -> bool {
+            let mut world = self.world_default();
+            let mut balance: TreasuryBalance = world.read_model(balance_type);
+
             // Reset daily spent if it's a new day (simplified check)
             let current_time = get_block_timestamp();
-            let seconds_per_day = 86400;
+            let seconds_per_day: u64 = 86400;
             let last_update_day = balance.last_updated / seconds_per_day;
             let current_day = current_time / seconds_per_day;
 
             if current_day > last_update_day {
-                // It's a new day, reset daily spent
-                return amount <= balance.daily_limit;
+                // BUG FIX: actually reset daily_spent and persist the change
+                balance.daily_spent = 0;
+                balance.last_updated = current_time;
+                world.write_model(@balance);
             }
 
             balance.daily_spent + amount <= balance.daily_limit
