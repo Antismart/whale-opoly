@@ -12,17 +12,14 @@ import { DojoSdkProvider } from "@dojoengine/sdk/react";
 import { dojoConfig } from "../dojoConfig.ts";
 import { setupWorld } from "./bindings/contracts.gen.ts";
 import type { SchemaType } from "./bindings/models.gen.ts";
+import { TORII_URL } from "./config.ts";
 
 async function main() {
     // Initialize the SDK with configuration options
     const sdk = await init<SchemaType>({
         client: {
-            // Required: Address of the deployed World contract
             worldAddress: dojoConfig.manifest.world.address,
-            // Optional: Torii indexer URL (defaults to http://localhost:8080)
-            toriiUrl: "https://api.cartridge.gg/x/whale-opoly/torii",
-            // Optional: Relay URL for real-time messaging
-            relayUrl: "/ip4/127.0.0.1/tcp/9090",
+            toriiUrl: TORII_URL,
         },
         // Domain configuration for typed message signing (SNIP-12)
         domain: {
