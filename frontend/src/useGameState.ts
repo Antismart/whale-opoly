@@ -1,143 +1,29 @@
-import { useState, useEffect } from 'react';
-import { useDojo } from './useDojo';
-import { useDojoContracts, useDojoGameQuery } from './useDojoContracts';
+// NOTE: Neither useLobbies nor the former useGameState is currently imported
+// anywhere in the app. This file is kept as a standalone lobby-management hook
+// that can be wired in when needed. If it remains unused, it can be safely deleted.
+//
+// The old useGameState hook has been removed — game state now lives in gameStore.ts.
+// The duplicate Player, GameState, and Lobby type definitions have been removed;
+// shared types are re-exported from gameStore.ts.
+
+import { useState, useEffect, useCallback } from 'react';
+import { useDojoSDK } from '@dojoengine/sdk/react';
+import { useAccount } from '@starknet-react/core';
+import { CairoCustomEnum } from 'starknet';
 import { fetchOpenLobbies } from './toriiGraph';
 
-// Game state types matching the contract models
-export type Player = { id: string; name: string; color: string }
+import type { Player, Lobby } from './gameStore';
 
-export type GameState = {
-  players: Player[]
-  positions: Record<string, number>
-  balances: Record<string, number>
-  ownership: Record<number, string | undefined>
-  houses: Record<number, number>
-  currentIdx: number
-}
-
-export type Lobby = { 
-  gameId: number; 
-  host: string; 
-  entryEth: string; 
-  maxPlayers: number; 
-  players: number 
-}
-
-export function useGameState(gameId?: number) {
-  const sdk = useDojo();
-  const contracts = useDojoContracts();
-  const gameQuery = useDojoGameQuery(gameId);
-  
-  // Game state from Dojo or fallback to local state
-  const [game, setGame] = useState<GameState>({
-    players: [
-      { id: 'P1', name: 'Blue', color: '#4da3ff' },
-      { id: 'P2', name: 'Red', color: '#ff6b6b' },
-      { id: 'P3', name: 'Green', color: '#3ecf8e' },
-      { id: 'P4', name: 'Yellow', color: '#ffd166' },
-    ],
-    positions: { P1: 0, P2: 0, P3: 0, P4: 0 },
-    balances: { P1: 1500, P2: 1500, P3: 1500, P4: 1500 },
-    ownership: {},
-    houses: {},
-    currentIdx: 0,
-  });
-
-  // Query game state from Dojo
-  useEffect(() => {
-    if (gameId && gameQuery) {
-      const fetchGameState = async () => {
-        try {
-          const gameState = await gameQuery.queryGameState();
-          const playerStates = await gameQuery.queryPlayerStates();
-          
-          if (gameState && playerStates.length > 0) {
-            // Convert Dojo data to local state format
-            const players = playerStates.map((player: Record<string, unknown>, idx: number) => ({
-              id: player.player_id,
-              name: `Player ${idx + 1}`,
-              color: ['#4da3ff', '#ff6b6b', '#3ecf8e', '#ffd166'][idx] || '#4da3ff'
-            }));
-            
-            const positions = playerStates.reduce((acc: Record<string, number>, player: Record<string, unknown>) => {
-              acc[player.player_id as string] = (player.position as number) || 0;
-              return acc;
-            }, {});
-            
-            const balances = playerStates.reduce((acc: Record<string, number>, player: Record<string, unknown>) => {
-              acc[player.player_id as string] = (player.balance as number) || 1500;
-              return acc;
-            }, {});
-            
-            setGame(prev => ({
-              ...prev,
-              players,
-              positions,
-              balances,
-              currentIdx: gameState.current_player || 0
-            }));
-          }
-        } catch (error) {
-          console.error('Failed to fetch game state from Dojo:', error);
-        }
-      };
-      
-      fetchGameState();
-      
-      // Set up polling for real-time updates
-      const interval = setInterval(fetchGameState, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [gameId, gameQuery]);
-
-  const updateGame = (updater: (prev: GameState) => GameState) => {
-    setGame(updater);
-  };
-
-  // Contract functions for game actions
-  const gameActions = {
-    rollDice: async () => {
-      if (contracts && gameId) {
-        try {
-          const result = await contracts.rollDice(gameId);
-          return result;
-        } catch (error) {
-          console.error('Failed to roll dice:', error);
-          return null;
-        }
-      }
-      return null;
-    },
-    
-    buyProperty: async (propertyId: number) => {
-      if (contracts && gameId) {
-        try {
-          const result = await contracts.buyProperty(gameId, propertyId);
-          return result;
-        } catch (error) {
-          console.error('Failed to buy property:', error);
-          return null;
-        }
-      }
-      return null;
-    }
-  };
-
-  return {
-    game,
-    updateGame,
-    gameActions,
-    sdk // Expose SDK for direct access
-  };
-}
+// Re-export shared types so existing consumers (if any) don't break.
+export type { Player, Lobby };
 
 export function useLobbies() {
   const [lobbies, setLobbies] = useState<Lobby[]>([]);
   const [loading, setLoading] = useState(false);
-  const sdk = useDojo();
-  const contracts = useDojoContracts();
+  const { client } = useDojoSDK();
+  const { account } = useAccount();
 
-  const refreshLobbies = async () => {
+  const refreshLobbies = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch from actual Dojo GraphQL endpoint
@@ -154,43 +40,49 @@ export function useLobbies() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const createLobby = async (maxPlayers: number, _host: string, entryEth: string) => {
-    if (contracts) {
-      try {
-        const result = await contracts.createGame(maxPlayers, entryEth);
-        await refreshLobbies(); // Refresh after creation
-        return result;
-      } catch (error) {
-        console.error('Failed to create lobby:', error);
-        return null;
-      }
+    if (!client || !account) return null;
+
+    try {
+      // Map entryEth to GameTier CairoCustomEnum
+      const tierName = entryEth === '0.01' ? 'Bronze'
+        : entryEth === '0.1' ? 'Silver'
+        : entryEth === '1' ? 'Gold'
+        : entryEth === '10' ? 'Platinum'
+        : 'Bronze';
+
+      const tier = new CairoCustomEnum({ [tierName]: {} });
+      const result = await client.game_manager.createGame(account, tier, maxPlayers);
+      await refreshLobbies(); // Refresh after creation
+      return result;
+    } catch (error) {
+      console.error('Failed to create lobby:', error);
+      return null;
     }
-    return null;
   };
 
-  const joinLobby = async (gameId: number, playerName: string) => {
-    if (contracts) {
-      try {
-        const result = await contracts.joinGame(gameId, playerName);
-        await refreshLobbies(); // Refresh after joining
-        return result;
-      } catch (error) {
-        console.error('Failed to join lobby:', error);
-        return null;
-      }
+  const joinLobby = async (gameId: number, _playerName: string) => {
+    if (!client || !account) return null;
+
+    try {
+      const result = await client.game_manager.joinGame(account, gameId);
+      await refreshLobbies(); // Refresh after joining
+      return result;
+    } catch (error) {
+      console.error('Failed to join lobby:', error);
+      return null;
     }
-    return null;
   };
 
   useEffect(() => {
     refreshLobbies();
-    
+
     // Set up polling for lobby updates
     const interval = setInterval(refreshLobbies, 10000);
     return () => clearInterval(interval);
-  }, [sdk]);
+  }, [refreshLobbies]);
 
   return {
     lobbies,
