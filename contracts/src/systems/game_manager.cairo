@@ -4,8 +4,8 @@ use dojo::world::{WorldStorage};
 use dojo::event::{EventStorage};
 
 use whale_opoly::models::{
-    GameState, PlayerGameState, GlobalPlayerState, GameStatus, GameTier, 
-    VerificationTier, TreasuryBalance, BalanceType
+    GameState, PlayerGameState, GlobalPlayerState, GameStatus, GameTier,
+    VerificationTier, TreasuryBalance, BalanceType, GameCurrency, PlayerPosition
 };
 
 // ===== INTERFACES =====
@@ -92,7 +92,7 @@ pub mod game_manager {
     use super::{
         IGameManager, GameCreated, PlayerJoined, GameStarted, GameEnded,
         GameState, PlayerGameState, GlobalPlayerState, GameStatus, GameTier,
-        VerificationTier, TreasuryBalance, BalanceType,
+        VerificationTier, TreasuryBalance, BalanceType, GameCurrency, PlayerPosition,
         MAX_PLAYERS_PER_GAME, MIN_PLAYERS_PER_GAME, GAME_START_DELAY, MAX_CONCURRENT_GAMES,
         BRONZE_ENTRY_FEE, SILVER_ENTRY_FEE, GOLD_ENTRY_FEE, PLATINUM_ENTRY_FEE,
         BRONZE_STARTING_BALANCE, SILVER_STARTING_BALANCE, GOLD_STARTING_BALANCE, PLATINUM_STARTING_BALANCE
@@ -163,10 +163,21 @@ pub mod game_manager {
             new_active_games.append(game_id);
             updated_player_state.active_games = new_active_games.span();
 
+            // Initialize game currency for creator
+            let game_currency = GameCurrency {
+                game_id,
+                player: creator,
+                balance: starting_balance,
+                starting_amount: starting_balance,
+                total_earned: 0,
+                total_spent: 0,
+            };
+
             // Write to world
             world.write_model(@game_state);
             world.write_model(@player_game_state);
             world.write_model(@updated_player_state);
+            world.write_model(@game_currency);
 
             // Update treasury
             self._update_treasury_balance(entry_fee);
@@ -242,10 +253,21 @@ pub mod game_manager {
             new_active_games.append(game_id);
             updated_player_state.active_games = new_active_games.span();
 
+            // Initialize game currency for joining player
+            let game_currency = GameCurrency {
+                game_id,
+                player,
+                balance: starting_balance,
+                starting_amount: starting_balance,
+                total_earned: 0,
+                total_spent: 0,
+            };
+
             // Write to world
             world.write_model(@game_state);
             world.write_model(@player_game_state);
             world.write_model(@updated_player_state);
+            world.write_model(@game_currency);
 
             // Update treasury
             self._update_treasury_balance(entry_fee);
@@ -279,6 +301,21 @@ pub mod game_manager {
             game_state.start_time = current_time + GAME_START_DELAY;
             game_state.turn_deadline = current_time + GAME_START_DELAY + 60; // 1 minute per turn
             game_state.current_turn = 0;
+
+            // Initialize player positions at GO
+            let mut p = 0;
+            while p < game_state.players.len() {
+                let player_addr = *game_state.players.at(p);
+                let player_position = PlayerPosition {
+                    player: player_addr,
+                    game_id,
+                    position: 0,
+                    last_move_time: current_time,
+                    moves_remaining: 0,
+                };
+                world.write_model(@player_position);
+                p += 1;
+            };
 
             // Write to world
             world.write_model(@game_state);
