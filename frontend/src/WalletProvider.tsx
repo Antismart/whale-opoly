@@ -24,6 +24,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
       chains={[sepolia, mainnet]}
       provider={publicProvider()}
       connectors={getConnectors()}
+      autoConnect
     >
       {children}
     </StarknetConfig>
