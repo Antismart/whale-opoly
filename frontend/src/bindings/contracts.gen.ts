@@ -224,6 +224,27 @@ export function setupWorld(provider: DojoProvider) {
 		}
 	};
 
+	const build_board_actions_payBail_calldata = (gameId: BigNumberish): DojoCall => {
+		return {
+			contractName: "board_actions",
+			entrypoint: "pay_bail",
+			calldata: [gameId],
+		};
+	};
+
+	const board_actions_payBail = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+		try {
+			return await provider.execute(
+				snAccount,
+				build_board_actions_payBail_calldata(gameId),
+				"whale_opoly",
+			);
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
 	const build_economics_applyMarketVolatility_calldata = (gameId: BigNumberish, eventType: CairoCustomEnum, magnitude: BigNumberish): DojoCall => {
 		return {
 			contractName: "economics",
@@ -1393,6 +1414,8 @@ export function setupWorld(provider: DojoProvider) {
 			buildRollDiceCalldata: build_board_actions_rollDice_calldata,
 			unmortgageProperty: board_actions_unmortgageProperty,
 			buildUnmortgagePropertyCalldata: build_board_actions_unmortgageProperty_calldata,
+			payBail: board_actions_payBail,
+			buildPayBailCalldata: build_board_actions_payBail_calldata,
 		},
 		economics: {
 			applyMarketVolatility: economics_applyMarketVolatility,
