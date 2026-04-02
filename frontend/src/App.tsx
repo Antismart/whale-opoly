@@ -296,7 +296,7 @@ function App() {
   const [actionLoading, setActionLoading] = useState<string | null>(null) // 'creating' | 'joining' | 'rolling' | 'buying' | null
 
   // --- Core state ---
-  const [section, setSection] = useState<'onboard'|'dashboard'|'play'|'events'>('onboard')
+  const [section, setSection] = useState<'onboard'|'dashboard'|'play'>('onboard')
   const [selected, setSelected] = useState(0)
   const [d1, setD1] = useState(1)
   const [d2, setD2] = useState(1)
@@ -337,9 +337,6 @@ function App() {
   ]))
   const [jailPasses, setJailPasses] = useState<Record<string, number>>({})
 
-  // NEW: derived counts to consume deck state so they are not flagged unused
-  const chanceRemaining = chanceDeck.length
-  const chestRemaining = chestDeck.length
 
   // Prices
   const price: Record<number, number> = { 1:60,3:60,6:100,8:100,9:120,11:140,13:140,14:160,16:180,18:180,19:200,21:220,23:220,24:240,26:260,27:260,29:280,31:300,32:300,34:320,37:350,39:400, 5:200,15:200,25:200,35:200, 12:150,28:150 }
@@ -494,35 +491,28 @@ function App() {
         <nav className="navList">
           <button className={`navItem ${section==='onboard'?'active':''}`} onClick={()=>setSection('onboard')}>
             <span className="icon" aria-hidden>{DiceIcon}</span>
-            <span>Onboard</span>
+            <span>Lobby</span>
           </button>
           <button className={`navItem ${section==='dashboard'?'active':''}`} onClick={()=>setSection('dashboard')}>
             <span className="icon" aria-hidden>{DiceIcon}</span>
-            <span>Dashboard</span>
+            <span>Harbor</span>
           </button>
           <button className={`navItem ${section==='play'?'active':''}`} onClick={()=>setSection('play')}>
             <span className="icon" aria-hidden>{BoardIcon}</span>
             <span>Play</span>
           </button>
-          <button className={`navItem ${section==='events'?'active':''}`} onClick={()=>setSection('events')}>
-            <span className="icon" aria-hidden>{EventIcon}</span>
-            <span>Events</span>
-          </button>
         </nav>
         <div className="sideFooter">
-          <div className="chip">v0.1 • devnet</div>
-          <div className="chip small">Ch:{chanceRemaining}</div>
-            <div className="chip small">Cs:{chestRemaining}</div>
+          <div className="chip">Starknet Testnet</div>
         </div>
       </aside>
 
       <main className="content">
         <header className="topbar">
           <div className="crumbs">
-            <span className="crumb">{section}</span>
+            <span className="crumb">{section === 'onboard' ? 'Lobby' : section === 'play' ? 'Game Board' : 'Harbor'}</span>
           </div>
           <div className="actions">
-            <button className="btn ghost">Docs</button>
             <WalletButton />
           </div>
         </header>
@@ -532,10 +522,10 @@ function App() {
             <section className="hero">
               <div className="hero-copy">
                 <h1>
-                  Stake, Join, Conquer
+                  Dive In. Stake. Conquer.
                   <span className="sparkle"/>
                 </h1>
-                <p>Create a lobby or join one. That’s it.</p>
+                <p>Create a game or join the depths.</p>
                 <div className="cta">
                   <button className="btn outline" onClick={()=>setSection('play')}>Try the board</button>
                 </div>
@@ -609,7 +599,7 @@ function App() {
                     <div className="stat"><div className="statLabel">Owned tiles</div><div className="statValue">{ownedCount}</div></div>
                     <div className="stat"><div className="statLabel">Houses built</div><div className="statValue">{housesBuilt}</div></div>
                     <div className="stat"><div className="statLabel">Cash total</div><div className="statValue">${cashTotal}</div></div>
-                    <div className="stat"><div className="statLabel">Cards left</div><div className="statValue">Ch {chanceRemaining} • Cs {chestRemaining}</div></div>
+                    <div className="stat"><div className="statLabel">Cards left</div><div className="statValue">Ch {chanceDeck.length} • Cs {chestDeck.length}</div></div>
                   </div>
                 )
               })()}
