@@ -26,20 +26,21 @@ export function MonopolyBoard({ players, positions, ownership, houses, selected,
   d1: number; d2: number; rolling: boolean; onRoll: () => void;
   mortgages?: Record<number, boolean>;
 }) {
-  function tileStyle(id: number, side: 'bottom'|'left'|'top'|'right', baseRow: number, baseCol: number) {
+  function tileStyle(id: number, side: 'bottom'|'left'|'top'|'right', baseRow: number, baseCol: number, color?: string) {
     const isCorner = id === 0 || id === 10 || id === 20 || id === 30
+    const tint = color ? { background: `linear-gradient(to bottom, ${color}11, transparent)` } : {}
     if (isCorner) {
       // Use single-cell corners to avoid any crossing with side tiles
-      if (id === 0) return { gridRow: 11, gridColumn: 11 } as React.CSSProperties
-      if (id === 10) return { gridRow: 11, gridColumn: 1 } as React.CSSProperties
-      if (id === 20) return { gridRow: 1, gridColumn: 1 } as React.CSSProperties
-      return { gridRow: 1, gridColumn: 11 } as React.CSSProperties
+      if (id === 0) return { gridRow: 11, gridColumn: 11, ...tint } as React.CSSProperties
+      if (id === 10) return { gridRow: 11, gridColumn: 1, ...tint } as React.CSSProperties
+      if (id === 20) return { gridRow: 1, gridColumn: 1, ...tint } as React.CSSProperties
+      return { gridRow: 1, gridColumn: 11, ...tint } as React.CSSProperties
     }
     // Place sides on outermost single row/column
-    if (side === 'bottom') return { gridRow: 11, gridColumn: baseCol } as React.CSSProperties
-    if (side === 'top') return { gridRow: 1, gridColumn: baseCol } as React.CSSProperties
-    if (side === 'left') return { gridRow: baseRow, gridColumn: 1 } as React.CSSProperties
-    return { gridRow: baseRow, gridColumn: 11 } as React.CSSProperties
+    if (side === 'bottom') return { gridRow: 11, gridColumn: baseCol, ...tint } as React.CSSProperties
+    if (side === 'top') return { gridRow: 1, gridColumn: baseCol, ...tint } as React.CSSProperties
+    if (side === 'left') return { gridRow: baseRow, gridColumn: 1, ...tint } as React.CSSProperties
+    return { gridRow: baseRow, gridColumn: 11, ...tint } as React.CSSProperties
   }
 
   return (
@@ -50,7 +51,7 @@ export function MonopolyBoard({ players, positions, ownership, houses, selected,
           const isCorner = t.id === 0 || t.id === 10 || t.id === 20 || t.id === 30
           const isMort = !!(mortgages && mortgages[t.id])
           const classNames = ['monoTile', side, isCorner ? 'corner' : '', selected===t.id?'selected':'', isMort?'mortgaged':'', `kind-${t.kind}`].filter(Boolean).join(' ')
-          const style = tileStyle(t.id, side, row, col)
+          const style = tileStyle(t.id, side, row, col, t.color)
           const ownerId = ownership[t.id]
           const tileHouses = houses[t.id] || 0
           const tilePlayers = players.filter(p => positions[p.id] === t.id)
@@ -65,8 +66,8 @@ export function MonopolyBoard({ players, positions, ownership, houses, selected,
               data-side={side}
               data-kind={t.kind}
             >
-              {t.color && <span className="colorBar" style={{ background: t.color }} />}
-              <span className="index">{t.id}</span>
+              {t.color && <span className="colorBar" style={{ background: t.color, minHeight: 8 }} />}
+
               <span className="label">{t.label}</span>
               {ownerId && <span className="ownerStripe" style={{ background: players.find(p => p.id===ownerId)?.color }} />}
               {t.kind==='property' && tileHouses>0 && (
@@ -78,7 +79,7 @@ export function MonopolyBoard({ players, positions, ownership, houses, selected,
               )}
               {tilePlayers.length>0 && (
                 <span className="tokensWrap">
-                  {tilePlayers.map((p,i)=>(<span key={p.id} className="token" style={{ background: p.color, transform: `translateX(${i*12}px)` }} />))}
+                  {tilePlayers.map((p,i)=>(<span key={p.id} className="token" style={{ background: p.color, width: 14, height: 14, boxShadow: '0 0 8px ' + p.color + '88', transform: `translateX(${i*14}px)` }} />))}
                 </span>
               )}
             </button>
