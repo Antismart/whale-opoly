@@ -6,36 +6,15 @@ import { useDojoSDK, useEntityQuery, useModels } from "@dojoengine/sdk/react"
 import { ToriiQueryBuilder, MemberClause } from "@dojoengine/sdk"
 import { useAccount } from "@starknet-react/core"
 import { CairoCustomEnum } from "starknet"
-
-// Types from your contracts
-type Player = {
-  id: string;
-  name: string;
-  color: string;
-}
-
-type Lobby = {
-  gameId: number;
-  host: string;
-  maxPlayers: number;
-  players: number;
-  entryEth: string;
-}
-
-// --- Card system types ---
-type CardAction =
-  | { kind: 'money'; amount: number }
-  | { kind: 'move'; to: number; passGo?: boolean }
-  | { kind: 'move_rel'; delta: number }
-  | { kind: 'goto_jail' }
-  | { kind: 'jail_pass' }
-  | { kind: 'collect_each'; amount: number }
-  | { kind: 'pay_each'; amount: number }
-  | { kind: 'nearest_rail' }
-  | { kind: 'nearest_utility' }
-  | { kind: 'repair'; perHouse: number; perHotel: number }
-
-type Card = { id: string; deck: 'chance'|'chest'; title: string; text: string; action: CardAction; keep?: boolean }
+import { useToast } from './useToast'
+import { MonopolyBoard } from './components/MonopolyBoard'
+import { PlayersPanel } from './components/PlayersPanel'
+import { TileDetails } from './components/TileDetails'
+import { ActionBar } from './components/ActionBar'
+import { OnboardPanel } from './components/OnboardPanel'
+import { DiceIcon, BoardIcon, EventIcon } from './components/Icons'
+import { monoTiles } from './data/boardTiles'
+import type { Lobby, Card } from './types'
 
 // Utility
 function shuffle<T>(arr: T[]): T[] { return [...arr].sort(()=>Math.random()-0.5) }
@@ -50,25 +29,39 @@ function App() {
   const [nextGameId, setNextGameId] = useState(1);
   
   // Subscribe to game states using official SDK
-  // Note: These queries may fail with torii-wasm stub but won't crash the app
+  // Note: Returns empty results while torii-wasm is stubbed (see src/torii-wasm-stub.ts)
   useEntityQuery(
     new ToriiQueryBuilder()
       .withClause(MemberClause("whale_opoly-GameState", "status", "Eq", "Active").build())
       .includeHashedKeys()
   );
-  
-  // Subscribe to player positions  
+
+  // Subscribe to player positions
   useEntityQuery(
     new ToriiQueryBuilder()
-      .withClause(MemberClause("whale_opoly-Position", "x", "Gte", 0).build())
+      .withClause(MemberClause("whale_opoly-PlayerPosition", "position", "Gte", 0).build())
       .includeHashedKeys()
   );
-  
+
+  // Subscribe to game currencies
+  useEntityQuery(
+    new ToriiQueryBuilder()
+      .withClause(MemberClause("whale_opoly-GameCurrency", "balance", "Gte", 0).build())
+      .includeHashedKeys()
+  );
+
+  // Subscribe to properties
+  useEntityQuery(
+    new ToriiQueryBuilder()
+      .withClause(MemberClause("whale_opoly-Property", "property_id", "Gte", 0).build())
+      .includeHashedKeys()
+  );
+
   // Get real data from Zustand store
   const gameStates = useModels("whale_opoly-GameState");
-  const positions = useModels("whale_opoly-Position");
+  const playerPositions = useModels("whale_opoly-PlayerPosition");
   const gameCurrencies = useModels("whale_opoly-GameCurrency");
-  const propertyOwnerships = useModels("whale_opoly-PropertyOwnership");
+  const properties = useModels("whale_opoly-Property");
   
   // Extract game data from Dojo entities
   const gameEntities = Object.values(gameStates);
@@ -84,10 +77,10 @@ function App() {
     ].filter(p => p.id) : [],
     currentIdx: currentGame?.current_player_index || 0,
     positions: Object.fromEntries(
-      Object.values(positions).map((pos: any) => [pos.player, pos.position])
+      Object.values(playerPositions).map((pos: any) => [pos.player, pos.position])
     ),
     ownership: Object.fromEntries(
-      Object.values(propertyOwnerships).map((prop: any) => [prop.property_id, prop.owner])
+      Object.values(properties).map((prop: any) => [prop.property_id, prop.owner])
     ),
     balances: Object.fromEntries(
       Object.values(gameCurrencies).map((currency: any) => [currency.player, currency.balance])
@@ -120,16 +113,16 @@ function App() {
   // Real Dojo contract actions
   const createLobby = async (maxPlayers: number, host: string, entryEth: string) => {
     if (!account) {
-      console.warn('No wallet account connected');
+      toastError('Connect wallet first');
       return null;
     }
     if (!client) {
-      console.warn('Dojo client not available');
+      toastError('Dojo client not available');
       return null;
     }
-    
-    console.log(`Creating lobby: ${maxPlayers} players, host: ${host}, entry: ${entryEth} ETH`);
-    
+
+    setActionLoading('creating');
+
     // Generate unique game ID for this lobby
     const gameId = nextGameId;
     setNextGameId(prev => prev + 1);
@@ -146,13 +139,17 @@ function App() {
     setLocalLobbies(prev => [optimisticLobby, ...prev]);
     
     try {
-      // Create proper CairoCustomEnum for tier
-      const tier = new CairoCustomEnum({ Bronze: {} });
-      console.log('Calling client.game_manager.createGame with:', { account: account.address, tier, maxPlayers });
-      
+      // Map entryEth to the correct tier
+      const tierName = entryEth === '0.01' ? 'Bronze'
+        : entryEth === '0.1' ? 'Silver'
+        : entryEth === '1' ? 'Gold'
+        : entryEth === '10' ? 'Platinum'
+        : 'Bronze';
+      const tier = new CairoCustomEnum({ [tierName]: {} });
       const result = await client.game_manager.createGame(account, tier, maxPlayers);
-      console.log('Create game result:', result);
       
+      setActionLoading(null);
+      toastSuccess('Lobby created on-chain!');
       // Show success message to user
       log('good', '🎉 Lobby Created Successfully!', `Transaction hash: ${result.transaction_hash?.slice(0, 10)}... | Players: ${maxPlayers} | Entry: ${entryEth} ETH`);
       
@@ -168,18 +165,20 @@ function App() {
       return { gameId, success: true, transactionHash: result.transaction_hash };
     } catch (error) {
       console.error('Create game failed:', error);
-      console.error('Error details:', error instanceof Error ? error.message : String(error));
-      
+      setActionLoading(null);
+      toastError('Failed to create lobby');
+
       // Remove the optimistic lobby on failure
       setLocalLobbies(prev => prev.filter(lobby => lobby.gameId !== gameId));
-      
+
       return null;
     }
   };
   
   const joinLobby = async (gameId: number, username: string) => {
-    if (!account || !client) return null;
-    
+    if (!account || !client) { toastError('Connect wallet first'); return null; }
+    setActionLoading('joining');
+
     // Check if user is trying to join their own lobby
     const lobby = lobbies.find(l => l.gameId === gameId);
     if (lobby && lobby.host === account.address) {
@@ -198,11 +197,15 @@ function App() {
     
     try {
       await client.game_manager.joinGame(account, gameId);
+      setActionLoading(null);
+      toastSuccess('Joined game!');
       log('good', '🎮 Joined Game!', `Successfully joined lobby #${gameId} as ${username}`);
       return { success: true };
     } catch (error) {
       console.error('Join game failed:', error);
-      
+      setActionLoading(null);
+      toastError('Failed to join game');
+
       // Revert the optimistic update on failure
       setLocalLobbies(prev => 
         prev.map(lobby => 
@@ -221,25 +224,51 @@ function App() {
     if (!account || !client || !currentGameId) return null;
     try {
       await client.board_actions.rollDice(account, currentGameId);
-      // Parse dice results from result if available
-      return { dice1: 3, dice2: 4, success: true }; // Mock values, parse from result
+      // TODO: Parse real dice values from contract result once event decoding is wired up
+      return { dice1: 3, dice2: 4, success: true };
     } catch (error) {
       console.error('Roll dice failed:', error);
+      toastError('Dice roll failed');
       return null;
     }
   };
-  
+
   const buyPropertyAction = async (propertyId: number) => {
     if (!account || !client || !currentGameId) return null;
+    setActionLoading('buying');
     try {
       await client.board_actions.buyProperty(account, currentGameId, propertyId);
+      setActionLoading(null);
+      toastSuccess('Property purchased!');
       return { success: true };
     } catch (error) {
       console.error('Buy property failed:', error);
+      setActionLoading(null);
+      toastError('Purchase failed');
       return null;
     }
   };
-  
+
+  const startGame = async (gameId: number) => {
+    if (!account || !client) { toastError('Connect wallet first'); return null; }
+    setActionLoading('starting');
+    try {
+      await client.game_manager.startGame(account, gameId);
+      setActionLoading(null);
+      toastSuccess('Game started!');
+      setCurrentGameId(gameId);
+      // Switch to play section
+      setSection('play');
+      log('good', 'Game Started', `Game #${gameId} is now active!`);
+      return { success: true };
+    } catch (error) {
+      console.error('Start game failed:', error);
+      setActionLoading(null);
+      toastError('Failed to start game');
+      return null;
+    }
+  };
+
   // Lobby refresh mechanism - sync local state with blockchain
   const refreshLobbies = () => {
     setLocalLobbies(prev => {
@@ -260,9 +289,12 @@ function App() {
   const updateGame = (_updater: (g: typeof game) => typeof game) => {
     // Since we're using real Dojo data, we don't need local updates
     // The Zustand store will update automatically when blockchain state changes
-    console.log('Game update will reflect from blockchain via Dojo subscriptions');
   };
   
+  // --- Toast & loading state ---
+  const { toasts, success: toastSuccess, error: toastError, loading: toastLoading, removeToast } = useToast();
+  const [actionLoading, setActionLoading] = useState<string | null>(null) // 'creating' | 'joining' | 'rolling' | 'buying' | null
+
   // --- Core state ---
   const [section, setSection] = useState<'onboard'|'dashboard'|'play'|'events'>('onboard')
   const [selected, setSelected] = useState(0)
@@ -273,7 +305,7 @@ function App() {
   const [mortgages, setMortgages] = useState<Record<number, boolean>>({})
   const [inJail, setInJail] = useState<Record<string, number>>({})
   const [lastRoll, setLastRoll] = useState(0)
-  // lobbies now come from useLobbies hook
+  // lobbies come from blockchain entities merged with local optimistic state
   const [openCard, setOpenCard] = useState<Card | undefined>()
   const [chanceDeck, setChanceDeck] = useState<Card[]>(() => shuffle([
     { id:'c1', deck:'chance', title:'Advance to Start', text:'Collect $200', action:{ kind:'move', to:0, passGo:true } },
@@ -376,12 +408,20 @@ function App() {
       // Use real Dojo contract for dice roll
       const dojoResult = await rollDiceAction();
       if (dojoResult?.dice1 && dojoResult?.dice2) {
-        setTimeout(()=>{ 
-          setD1(dojoResult.dice1); 
-          setD2(dojoResult.dice2); 
-          setLastRoll(dojoResult.dice1+dojoResult.dice2); 
-          setRolling(false); 
-          moveAndResolve(dojoResult.dice1+dojoResult.dice2) 
+        // After rolling dice, also call move_player on contract
+        if (account && client && currentGameId) {
+          try {
+            await client.board_actions.movePlayer(account, currentGameId, dojoResult.dice1 + dojoResult.dice2);
+          } catch (error) {
+            console.error('Move player contract call failed:', error);
+          }
+        }
+        setTimeout(()=>{
+          setD1(dojoResult.dice1);
+          setD2(dojoResult.dice2);
+          setLastRoll(dojoResult.dice1+dojoResult.dice2);
+          setRolling(false);
+          moveAndResolve(dojoResult.dice1+dojoResult.dice2)
         }, 420);
         return;
       }
@@ -424,11 +464,11 @@ function App() {
     // If contract call fails, log the error  
     log('warn','Purchase failed','Check connection');
   }
-  function buildHouse(id:number){ const t=monoTiles[id]; if(!t||t.kind!=='property') return; const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); if(!ownsGroup(cur.id,id)) return log('warn','Need set',''); const current=game.houses[id]||0; if(current>=5) return log('warn','Max built',''); const cost=current===4?houseCost[id]*2:houseCost[id]; if((game.balances[cur.id]||0)<cost) return log('warn','Need funds',`$${cost}`); updateGame(g=>({...g, houses:{...g.houses,[id]:current+1}, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-cost}})); log('good', current===4?'Hotel built':'House built', `-$${cost}`) }
-  function mortgageProperty(id:number){ if(mortgages[id]) return log('warn','Already mortgaged',''); const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); const val=Math.floor((price[id]||0)/2); setMortgages(m=>({...m,[id]:true})); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)+val}})); log('info','Mortgaged',`+$${val}`) }
-  function unmortgageProperty(id:number){ if(!mortgages[id]) return; const cur=game.players[game.currentIdx]; if(!cur) return; const val=Math.floor((price[id]||0)/2)*1.1; if((game.balances[cur.id]||0)<val) return log('warn','Need funds',`$${val}`); setMortgages(m=>{const n={...m}; delete n[id]; return n}); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-val}})); log('info','Unmortgaged',`-$${val}`) }
-  function payBail(){ const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((game.balances[cur.id]||0)<50) return log('warn','Need $50',''); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-50}})); setInJail(j=>({...j,[cur.id]:0})); log('good','Bail paid','Freed') }
-  function endTurn(){ if(openCard) return log('warn','Resolve card','Apply first'); updateGame(g=>({...g, currentIdx:(g.currentIdx+1)%g.players.length })); setInJail(j=>{ const n={...j}; Object.keys(n).forEach(k=>{ if(n[k]>0) n[k]-=1 }); return n }) }
+  async function buildHouse(id:number){ const t=monoTiles[id]; if(!t||t.kind!=='property') return; const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); if(!ownsGroup(cur.id,id)) return log('warn','Need set',''); const current=game.houses[id]||0; if(current>=5) return log('warn','Max built',''); const cost=current===4?houseCost[id]*2:houseCost[id]; if((game.balances[cur.id]||0)<cost) return log('warn','Need funds',`$${cost}`); if (account && client && currentGameId) { try { await client.board_actions.developProperty(account, currentGameId, id); } catch (error) { console.error('Develop property contract call failed:', error); } } updateGame(g=>({...g, houses:{...g.houses,[id]:current+1}, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-cost}})); log('good', current===4?'Hotel built':'House built', `-$${cost}`) }
+  async function mortgageProperty(id:number){ if(mortgages[id]) return log('warn','Already mortgaged',''); const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); const val=Math.floor((price[id]||0)/2); if (account && client && currentGameId) { try { await client.board_actions.mortgageProperty(account, currentGameId, id); } catch (error) { console.error('Mortgage contract call failed:', error); } } setMortgages(m=>({...m,[id]:true})); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)+val}})); log('info','Mortgaged',`+$${val}`) }
+  async function unmortgageProperty(id:number){ if(!mortgages[id]) return; const cur=game.players[game.currentIdx]; if(!cur) return; const val=Math.floor((price[id]||0)/2)*1.1; if((game.balances[cur.id]||0)<val) return log('warn','Need funds',`$${val}`); if (account && client && currentGameId) { try { await client.board_actions.unmortgageProperty(account, currentGameId, id); } catch (error) { console.error('Unmortgage contract call failed:', error); } } setMortgages(m=>{const n={...m}; delete n[id]; return n}); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-val}})); log('info','Unmortgaged',`-$${val}`) }
+  async function payBail(){ const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((game.balances[cur.id]||0)<50) return log('warn','Need $50',''); if (account && client && currentGameId) { try { await client.board_actions.payBail(account, currentGameId); } catch (error) { console.error('Pay bail contract call failed:', error); } } updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-50}})); setInJail(j=>({...j,[cur.id]:0})); log('good','Bail paid','Freed') }
+  async function endTurn(){ if(openCard) return log('warn','Resolve card','Apply first'); if (account && client && currentGameId) { try { await client.board_actions.endTurn(account, currentGameId); } catch (error) { console.error('End turn contract call failed:', error); } } updateGame(g=>({...g, currentIdx:(g.currentIdx+1)%g.players.length })); setInJail(j=>{ const n={...j}; Object.keys(n).forEach(k=>{ if(n[k]>0) n[k]-=1 }); return n }) }
 
   // Derived
   const curPlayer = game.players[game.currentIdx] || { id: '', name: 'Unknown', color: '#666' }
@@ -533,6 +573,18 @@ function App() {
                   log('warn','Join failed', 'Check connection');
                 }
               }}
+              onStart={async (gameId)=>{
+                try {
+                  const result = await startGame(gameId);
+                  if (!result?.success) {
+                    throw new Error('Failed to start game');
+                  }
+                } catch (error) {
+                  console.error('Failed to start game:', error);
+                  log('warn','Start failed', 'Check connection');
+                }
+              }}
+              actionLoading={actionLoading}
             />
 
             {/* Removed verbose staking explainer to keep onboarding direct */}
@@ -580,6 +632,11 @@ function App() {
                     </div>
                     <div className="lobbyActions">
                       <button className="btn outline" onClick={()=>setSection('onboard')}>Open Onboard</button>
+                      {l.players >= 2 && (
+                        <button className="btn glow" disabled={actionLoading === 'starting'} onClick={()=>startGame(l.gameId)}>
+                          {actionLoading === 'starting' ? 'Starting...' : 'Start'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -729,303 +786,16 @@ function App() {
       {hasJailPass && curPlayer.id && (inJail[curPlayer.id]||0)>0 && (
         <button className="floatingBtn" onClick={useJailPass}>Use Jail Pass ({jailPasses[curPlayer.id] || 0})</button>
       )}
-    </div>
-  )
-}
 
-// Generic, copyright-safe board layout (40 tiles) inspired by classic Monopoly ring
-const monoTiles: { id: number; kind: 'corner'|'property'|'chance'|'chest'|'tax'|'rail'|'utility'|'gotojail'|'free'|'jail'; label: string; color?: string }[] = [
-  { id:0, kind:'corner', label:'Start' },
-  { id:1, kind:'property', label:'Reef Row', color:'#9ad0f5' },
-  { id:2, kind:'chest', label:'Chest' },
-  { id:3, kind:'property', label:'Coral Cove', color:'#9ad0f5' },
-  { id:4, kind:'tax', label:'Tax' },
-  { id:5, kind:'rail', label:'Harbor Rail' },
-  { id:6, kind:'property', label:'Kelp Keys', color:'#c7e59f' },
-  { id:7, kind:'chance', label:'Chance' },
-  { id:8, kind:'property', label:'Tide Terrace', color:'#c7e59f' },
-  { id:9, kind:'property', label:'Lagoon Lane', color:'#c7e59f' },
-  { id:10, kind:'jail', label:'Jail | Visiting' },
-  { id:11, kind:'property', label:'Pearl Plaza', color:'#d9a4f3' },
-  { id:12, kind:'utility', label:'Power Plant' },
-  { id:13, kind:'property', label:'Shell Square', color:'#d9a4f3' },
-  { id:14, kind:'property', label:'Trident Trail', color:'#d9a4f3' },
-  { id:15, kind:'rail', label:'Mariner Rail' },
-  { id:16, kind:'property', label:'Barnacle Blvd', color:'#f6d47c' },
-  { id:17, kind:'chest', label:'Chest' },
-  { id:18, kind:'property', label:'Seagrass St', color:'#f6d47c' },
-  { id:19, kind:'property', label:'Whale Way', color:'#f6d47c' },
-  { id:20, kind:'free', label:'Free Stop' },
-  { id:21, kind:'property', label:'Anchor Ave', color:'#7fc9b0' },
-  { id:22, kind:'chance', label:'Chance' },
-  { id:23, kind:'property', label:'Current Ct', color:'#7fc9b0' },
-  { id:24, kind:'property', label:'Harpoon Hwy', color:'#7fc9b0' },
-  { id:25, kind:'rail', label:'Seafarer Rail' },
-  { id:26, kind:'property', label:'Driftwood Dr', color:'#e7a592' },
-  { id:27, kind:'property', label:'Gull Grove', color:'#e7a592' },
-  { id:28, kind:'utility', label:'Water Works' },
-  { id:29, kind:'property', label:'Marlin Meadows', color:'#e7a592' },
-  { id:30, kind:'gotojail', label:'Go To Jail' },
-  { id:31, kind:'property', label:'Siren St', color:'#7fb2f0' },
-  { id:32, kind:'property', label:'Net Nook', color:'#7fb2f0' },
-  { id:33, kind:'chest', label:'Chest' },
-  { id:34, kind:'property', label:'Kraken Knoll', color:'#7fb2f0' },
-  { id:35, kind:'rail', label:'Deep Rail' },
-  { id:36, kind:'chance', label:'Chance' },
-  { id:37, kind:'property', label:'Poseidon Pl', color:'#3aa3e3' },
-  { id:38, kind:'tax', label:'Luxury Tax' },
-  { id:39, kind:'property', label:'Leviathan Lp', color:'#3aa3e3' },
-]
-
-function MonopolyBoard({ players, positions, ownership, houses, selected, onSelect, d1, d2, rolling, onRoll, mortgages }:{
-  players: Player[];
-  positions: Record<string, number>;
-  ownership: Record<number, string | undefined>;
-  houses: Record<number, number>;
-  selected: number;
-  onSelect: (id: number) => void;
-  d1: number; d2: number; rolling: boolean; onRoll: () => void;
-  mortgages?: Record<number, boolean>;
-}) {
-  function tileStyle(id: number, side: 'bottom'|'left'|'top'|'right', baseRow: number, baseCol: number) {
-    const isCorner = id === 0 || id === 10 || id === 20 || id === 30
-    if (isCorner) {
-      // Use single-cell corners to avoid any crossing with side tiles
-      if (id === 0) return { gridRow: 11, gridColumn: 11 } as React.CSSProperties
-      if (id === 10) return { gridRow: 11, gridColumn: 1 } as React.CSSProperties
-      if (id === 20) return { gridRow: 1, gridColumn: 1 } as React.CSSProperties
-      return { gridRow: 1, gridColumn: 11 } as React.CSSProperties
-    }
-    // Place sides on outermost single row/column
-    if (side === 'bottom') return { gridRow: 11, gridColumn: baseCol } as React.CSSProperties
-    if (side === 'top') return { gridRow: 1, gridColumn: baseCol } as React.CSSProperties
-    if (side === 'left') return { gridRow: baseRow, gridColumn: 1 } as React.CSSProperties
-    return { gridRow: baseRow, gridColumn: 11 } as React.CSSProperties
-  }
-
-  return (
-    <div className="boardWrap">
-      <div className="boardMono">
-        {monoTiles.map((t) => {
-          const { row, col, side } = toGrid(t.id)
-          const isCorner = t.id === 0 || t.id === 10 || t.id === 20 || t.id === 30
-          const isMort = !!(mortgages && mortgages[t.id])
-          const classNames = ['monoTile', side, isCorner ? 'corner' : '', selected===t.id?'selected':'', isMort?'mortgaged':'', `kind-${t.kind}`].filter(Boolean).join(' ')
-          const style = tileStyle(t.id, side, row, col)
-          const ownerId = ownership[t.id]
-          const tileHouses = houses[t.id] || 0
-          const tilePlayers = players.filter(p => positions[p.id] === t.id)
-          return (
-            <button
-              key={t.id}
-              className={classNames}
-              style={style}
-              onClick={() => onSelect(t.id)}
-              data-id={t.id}
-              data-corner={isCorner ? t.label : undefined}
-              data-side={side}
-              data-kind={t.kind}
-            >
-              {t.color && <span className="colorBar" style={{ background: t.color }} />}
-              <span className="index">{t.id}</span>
-              <span className="label">{t.label}</span>
-              {ownerId && <span className="ownerStripe" style={{ background: players.find(p => p.id===ownerId)?.color }} />}
-              {t.kind==='property' && tileHouses>0 && (
-                <span className="houses">
-                  {tileHouses < 5
-                    ? Array.from({length: tileHouses}).map((_,i)=>(<span key={i} className="house" />))
-                    : <span className="hotel" />}
-                </span>
-              )}
-              {tilePlayers.length>0 && (
-                <span className="tokensWrap">
-                  {tilePlayers.map((p,i)=>(<span key={p.id} className="token" style={{ background: p.color, transform: `translateX(${i*12}px)` }} />))}
-                </span>
-              )}
-            </button>
-          )
-        })}
-        <div className="boardCenter">
-          <img className="centerLogo" src="/whaleopoly%20transparent.png" alt="Whaleopoly logo" />
-        </div>
-        <div className="diceTray">
-          <div className={`die ${rolling ? 'rolling' : ''}`} aria-label={`die ${d1}`}>
-            {[1,2,3,4,5,6,7,8,9].filter(pos => [1,2,3,4,5,6].includes(pos)).map(()=>null) /* placeholder to keep grid */}
-            {[1,2,3,4,5,6,7,8,9].filter(p=>({1:[5],2:[1,9],3:[1,5,9],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]} as Record<number, number[]>)[d1].includes(p)).map((p)=>(<span key={p} className={`pip pos-${p}`} />))}
-          </div>
-          <div className={`die ${rolling ? 'rolling' : ''}`} aria-label={`die ${d2}`}>
-            {[1,2,3,4,5,6,7,8,9].filter(pos => [1,2,3,4,5,6].includes(pos)).map(()=>null)}
-            {[1,2,3,4,5,6,7,8,9].filter(p=>({1:[5],2:[1,9],3:[1,5,9],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]} as Record<number, number[]>)[d2].includes(p)).map((p)=>(<span key={p} className={`pip pos-${p}`} />))}
-          </div>
-          <button className="btn glow rollBtn" onClick={onRoll} disabled={rolling}>{rolling ? 'Rolling…' : 'Roll'}</button>
-        </div>
-      </div>
-      {/* removed external diceRow to keep everything within board square */}
-    </div>
-  )
-}
-
-function toGrid(i: number): { row: number; col: number; side: 'bottom'|'left'|'top'|'right' } {
-  if (i >= 0 && i <= 10) {
-    return { row: 11, col: 11 - i, side: 'bottom' }
-  }
-  if (i >= 11 && i <= 20) {
-    return { row: 11 - (i - 10), col: 1, side: 'left' }
-  }
-  if (i >= 21 && i <= 30) {
-    return { row: 1, col: i - 19, side: 'top' }
-  }
-  // 31..39
-  return { row: i - 29, col: 11, side: 'right' }
-}
-
-// Treasury mock queue removed
-
-const DiceIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="1.5"/>
-    <circle cx="9" cy="9" r="1.5" fill="currentColor"/>
-    <circle cx="15" cy="15" r="1.5" fill="currentColor"/>
-  </svg>
-)
-
-const BoardIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-    <path d="M3 9h18M9 3v18" stroke="currentColor" strokeWidth="1.5"/>
-  </svg>
-)
-
-// Treasury icon removed
-
-const EventIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M7 3v4M17 3v4M4 8h16v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" strokeWidth="1.5"/>
-  </svg>
-)
-
-function PlayersPanel({ players, balances, positions, currentIdx }: { players: Player[]; balances: Record<string, number>; positions: Record<string, number>; currentIdx: number }) {
-  return (
-    <div className="playersPanel">
-      {players.map((p, i) => (
-        <div key={p.id} className={`playerRow ${i===currentIdx?'active':''}`}>
-          <span className="playerDot" style={{ background: p.color }} />
-          <span className="playerName">{p.name}</span>
-          <span className="playerPos">Tile {positions[p.id]}</span>
-          <span className="playerBal">${balances[p.id]}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function TileDetails({ tile, ownerId, players, price, houses, mortgaged }: { tile?: typeof monoTiles[number]; ownerId?: string; players: Player[]; price?: number; houses: number; mortgaged?: boolean }) {
-  const ownerName = ownerId ? (players.find(p => p.id===ownerId)?.name || ownerId) : 'Unowned'
-  if (!tile) return null
-  return (
-    <div className="tileDetails">
-      <div className="tileHeader">
-        <div className="colorSwatch" style={{ background: tile.color || 'transparent' }} />
-        <div className="tileTitle">{tile.label}</div>
-        <div className="tileKind">{tile.kind}</div>
-      </div>
-      {price && <div className="row"><span>Price</span><span>${price}</span></div>}
-      <div className="row"><span>Owner</span><span>{ownerName}</span></div>
-      {tile.kind==='property' && <div className="row"><span>Houses</span><span>{houses === 5 ? 'Hotel' : houses}</span></div>}
-      {typeof mortgaged === 'boolean' && <div className="row"><span>Status</span><span>{mortgaged ? 'Mortgaged' : 'Active'}</span></div>}
-    </div>
-  )
-}
-
-function ActionBar({ cur, tile, canBuy, canBuild, canDraw, onBuy, onBuild, onDraw, onEndTurn, onMortgage, onUnmortgage, canMortgage, canUnmortgage, inJailTurns, onPayBail, onTrade, onAuction, balances }: {
-  cur: Player;
-  tile?: typeof monoTiles[number];
-  canBuy: boolean;
-  canBuild: boolean;
-  canDraw: boolean;
-  onBuy: () => void;
-  onBuild: () => void;
-  onDraw: () => void;
-  onEndTurn: () => void;
-  onMortgage: () => void;
-  onUnmortgage: () => void;
-  canMortgage: boolean;
-  canUnmortgage: boolean;
-  inJailTurns: number;
-  onPayBail: () => void;
-  onTrade: () => void;
-  onAuction: () => void;
-  balances: Record<string, number>;
-}) {
-  return (
-    <div className="actionBar">
-      <div className="turnRow">
-        <span className="playerDot" style={{ background: cur.color }} />
-        <span className="turnText">{cur.name}'s turn {inJailTurns>0 && `(Jail: ${inJailTurns})`}</span>
-        {tile && <span className="currentTile">• {tile.label}</span>}
-        <span className="spacer" />
-        <span className="balance">${balances[cur.id]}</span>
-      </div>
-      <div className="btnRow">
-        <button className="btn glow" onClick={onEndTurn}>End Turn</button>
-        {canBuy && <button className="btn outline" onClick={onBuy}>Buy</button>}
-        {canBuild && <button className="btn outline" onClick={onBuild}>Build</button>}
-        {canDraw && <button className="btn outline" onClick={onDraw}>Apply Card</button>}
-        {canMortgage && <button className="btn outline" onClick={onMortgage}>Mortgage</button>}
-        {canUnmortgage && <button className="btn outline" onClick={onUnmortgage}>Unmortgage</button>}
-        {inJailTurns>0 && <button className="btn outline" onClick={onPayBail}>Pay Bail ($50)</button>}
-        <button className="btn ghost" onClick={onTrade}>Trade</button>
-        <button className="btn ghost" onClick={onAuction}>Auction</button>
-      </div>
-    </div>
-  )
-}
-
-function OnboardPanel({ lobbies, onCreate, onJoin }:{ lobbies: Lobby[]; onCreate: (maxPlayers: number, host: string, entryEth: string)=>Promise<void>; onJoin: (gameId: number, username: string)=>Promise<void> }) {
-  const [maxPlayers, setMaxPlayers] = useState(4)
-  const [username, setUsername] = useState('')
-  const [entryEth, setEntryEth] = useState('0.10')
-  return (
-    <section className="panel">
-      <div className="panelTitle">
-        <span className="icon" aria-hidden>{BoardIcon}</span>
-    Create or join a lobby
-      </div>
-      <div className="onboardActions">
-        <label className="field">
-          <span>Your username</span>
-          <input type="text" placeholder="e.g. WhaleLord" value={username} onChange={(e)=>setUsername(e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Entry amount (ETH)</span>
-          <input type="number" min={0} step={0.01} value={entryEth} onChange={(e)=>setEntryEth(e.target.value)} />
-        </label>
-        <label className="field">
-      <span>Max players</span>
-          <input type="number" min={2} max={6} value={maxPlayers} onChange={(e)=>setMaxPlayers(Math.max(2, Math.min(6, Number(e.target.value)||4)))} />
-        </label>
-        <button className="btn glow" disabled={!username || Number(entryEth)<=0} onClick={()=>onCreate(maxPlayers, username.trim(), entryEth)}>Create lobby</button>
-      </div>
-      <div className="panelTitle" style={{marginTop:16}}>Open lobbies</div>
-      <div className="lobbies">
-        {lobbies.length===0 && <div className="muted">No open lobbies yet.</div>}
-        {lobbies.map(l => (
-          <div key={l.gameId} className="lobbyRow">
-            <div className="lobbyMain">
-              <div className="lobbyTitle">Game #{l.gameId}</div>
-              <div className="lobbyMeta">
-                <span className="chip">{l.players}/{l.maxPlayers} players</span>
-                <span className="chip">entry {l.entryEth} ETH</span>
-                <span className="chip">host {l.host}</span>
-              </div>
-            </div>
-            <div className="lobbyActions">
-              <button className="btn outline" disabled={!username} onClick={()=>onJoin(l.gameId, username.trim())}>Join</button>
-            </div>
+      {/* Toast notifications */}
+      <div className="toast-container">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast ${t.kind}`} onClick={() => removeToast(t.id)}>
+            {t.message}
           </div>
         ))}
       </div>
-    </section>
+    </div>
   )
 }
 
