@@ -4,7 +4,7 @@ use dojo::world::{WorldStorage};
 use dojo::event::{EventStorage};
 
 use whale_opoly::models::{
-    GameState, PlayerGameState, PlayerPosition, GameStatus, 
+    GameState, PlayerGameState, PlayerPosition, GameStatus,
     Property, PropertyTransaction, TransactionType, PropertyGroup,
     GameCurrency
 };
@@ -24,6 +24,7 @@ pub trait IBoardActions<T> {
     fn get_current_player(self: @T, game_id: u64) -> ContractAddress;
     fn get_player_position(self: @T, player: ContractAddress, game_id: u64) -> u8;
     fn can_buy_property(self: @T, player: ContractAddress, game_id: u64, property_id: u8) -> bool;
+    fn pay_bail(ref self: T, game_id: u64) -> bool;
 }
 
 // ===== EVENTS =====
@@ -89,6 +90,28 @@ pub struct TurnEnded {
     pub timestamp: u64,
 }
 
+#[derive(Copy, Drop, Serde)]
+#[dojo::event]
+pub struct PlayerJailed {
+    #[key]
+    pub game_id: u64,
+    #[key]
+    pub player: ContractAddress,
+    pub from_position: u8,
+    pub timestamp: u64,
+}
+
+#[derive(Copy, Drop, Serde)]
+#[dojo::event]
+pub struct PlayerFreed {
+    #[key]
+    pub game_id: u64,
+    #[key]
+    pub player: ContractAddress,
+    pub method: felt252, // 'bail', 'doubles', 'served'
+    pub timestamp: u64,
+}
+
 // ===== CONSTANTS =====
 
 const BOARD_SIZE: u8 = 40;
@@ -96,6 +119,9 @@ const GO_POSITION: u8 = 0;
 const GO_SALARY: u256 = 200000; // $200k monopoly money
 const JAIL_POSITION: u8 = 10;
 const TURN_TIMEOUT: u64 = 300; // 5 minutes per turn
+const GO_TO_JAIL_POSITION: u8 = 30;
+const JAIL_BAIL_COST: u256 = 50000; // $50k monopoly money
+const MAX_JAIL_TURNS: u8 = 3;
 
 // Property positions on the board (simplified Monopoly layout)
 const BROWN_PROPERTIES: (u8, u8) = (1, 3);
@@ -113,9 +139,11 @@ const DARK_BLUE_PROPERTIES: (u8, u8) = (37, 39);
 pub mod board_actions {
     use super::{
         IBoardActions, DiceRolled, PlayerMoved, PropertyPurchased, RentPaid, TurnEnded,
-        GameState, PlayerGameState, PlayerPosition, GameStatus, 
+        PlayerJailed, PlayerFreed,
+        GameState, PlayerGameState, PlayerPosition, GameStatus,
         Property, PropertyTransaction, TransactionType, PropertyGroup, GameCurrency,
-        BOARD_SIZE, GO_POSITION, GO_SALARY, JAIL_POSITION, TURN_TIMEOUT
+        BOARD_SIZE, GO_POSITION, GO_SALARY, JAIL_POSITION, TURN_TIMEOUT,
+        GO_TO_JAIL_POSITION, JAIL_BAIL_COST, MAX_JAIL_TURNS
     };
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
     use dojo::model::{ModelStorage, ModelValueStorage};
@@ -132,7 +160,7 @@ pub mod board_actions {
             // Validate game state and turn
             let game_state: GameState = world.read_model(game_id);
             assert!(game_state.status == GameStatus::Active, "Game not active");
-            
+
             let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
             assert!(player == current_player, "Not your turn");
 
@@ -167,27 +195,69 @@ pub mod board_actions {
             // Validate game state and turn
             let game_state: GameState = world.read_model(game_id);
             assert!(game_state.status == GameStatus::Active, "Game not active");
-            
+
             let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
             assert!(player == current_player, "Not your turn");
 
             // Get current position
             let mut player_position: PlayerPosition = world.read_model((player, game_id));
             let from_position = player_position.position;
-            
+
             // Calculate new position
             let mut to_position = from_position + steps;
             let mut passed_go = false;
-            
+
             if to_position >= BOARD_SIZE {
                 to_position = to_position - BOARD_SIZE;
                 passed_go = true;
-                
+
                 // Pay GO salary
                 let mut player_currency: GameCurrency = world.read_model((game_id, player));
                 player_currency.balance += GO_SALARY;
                 player_currency.total_earned += GO_SALARY;
                 world.write_model(@player_currency);
+            }
+
+            // Check if player is in jail — cannot move normally
+            let player_game_state: PlayerGameState = world.read_model((player, game_id));
+            if player_game_state.is_in_jail {
+                // Player is in jail, cannot move
+                return false;
+            }
+
+            // Check if landing on "Go to Jail"
+            if to_position == GO_TO_JAIL_POSITION {
+                to_position = JAIL_POSITION;
+                passed_go = false; // Don't collect GO salary when sent to jail
+
+                // Put player in jail
+                let mut pgs: PlayerGameState = world.read_model((player, game_id));
+                pgs.is_in_jail = true;
+                pgs.jail_turns = 0;
+                world.write_model(@pgs);
+
+                // Update position to jail
+                player_position.position = JAIL_POSITION;
+                player_position.last_move_time = current_time;
+                world.write_model(@player_position);
+
+                world.emit_event(@PlayerJailed {
+                    game_id,
+                    player,
+                    from_position,
+                    timestamp: current_time,
+                });
+
+                world.emit_event(@PlayerMoved {
+                    game_id,
+                    player,
+                    from_position,
+                    to_position: JAIL_POSITION,
+                    passed_go: false,
+                    timestamp: current_time,
+                });
+
+                return true;
             }
 
             // Update position
@@ -216,6 +286,8 @@ pub mod board_actions {
             // Validate game state
             let game_state: GameState = world.read_model(game_id);
             assert!(game_state.status == GameStatus::Active, "Game not active");
+            let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
+            assert!(player == current_player, "Not your turn");
 
             // Get property and validate
             let mut property: Property = world.read_model((game_id, property_id));
@@ -273,6 +345,12 @@ pub mod board_actions {
             let mut world = self.world_default();
             let player = get_caller_address();
             let current_time = get_block_timestamp();
+
+            // Validate it's the caller's turn
+            let game_state: GameState = world.read_model(game_id);
+            assert!(game_state.status == GameStatus::Active, "Game not active");
+            let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
+            assert!(player == current_player, "Not your turn");
 
             // Get property
             let property: Property = world.read_model((game_id, property_id));
@@ -332,6 +410,11 @@ pub mod board_actions {
             let mut world = self.world_default();
             let player = get_caller_address();
 
+            let game_state: GameState = world.read_model(game_id);
+            assert!(game_state.status == GameStatus::Active, "Game not active");
+            let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
+            assert!(player == current_player, "Not your turn");
+
             // Get property and validate ownership
             let mut property: Property = world.read_model((game_id, property_id));
             assert!(property.owner == Option::Some(player), "Not property owner");
@@ -359,6 +442,11 @@ pub mod board_actions {
         fn unmortgage_property(ref self: ContractState, game_id: u64, property_id: u8) -> bool {
             let mut world = self.world_default();
             let player = get_caller_address();
+
+            let game_state: GameState = world.read_model(game_id);
+            assert!(game_state.status == GameStatus::Active, "Game not active");
+            let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
+            assert!(player == current_player, "Not your turn");
 
             // Get property and validate ownership
             let mut property: Property = world.read_model((game_id, property_id));
@@ -389,6 +477,11 @@ pub mod board_actions {
         fn develop_property(ref self: ContractState, game_id: u64, property_id: u8) -> bool {
             let mut world = self.world_default();
             let player = get_caller_address();
+
+            let game_state: GameState = world.read_model(game_id);
+            assert!(game_state.status == GameStatus::Active, "Game not active");
+            let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
+            assert!(player == current_player, "Not your turn");
 
             // Get property and validate
             let mut property: Property = world.read_model((game_id, property_id));
@@ -429,9 +522,36 @@ pub mod board_actions {
             // Validate turn
             let mut game_state: GameState = world.read_model(game_id);
             assert!(game_state.status == GameStatus::Active, "Game not active");
-            
+
             let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
             assert!(player == current_player, "Not your turn");
+
+            // Handle jail turn tracking for current player
+            let mut player_game_state: PlayerGameState = world.read_model((player, game_id));
+            if player_game_state.is_in_jail {
+                player_game_state.jail_turns += 1;
+                if player_game_state.jail_turns >= MAX_JAIL_TURNS {
+                    // Auto-release after serving time
+                    player_game_state.is_in_jail = false;
+                    player_game_state.jail_turns = 0;
+
+                    // Force bail payment if possible
+                    let mut player_currency: GameCurrency = world.read_model((game_id, player));
+                    if player_currency.balance >= JAIL_BAIL_COST {
+                        player_currency.balance -= JAIL_BAIL_COST;
+                        player_currency.total_spent += JAIL_BAIL_COST;
+                        world.write_model(@player_currency);
+                    }
+
+                    world.emit_event(@PlayerFreed {
+                        game_id,
+                        player,
+                        method: 'served',
+                        timestamp: current_time,
+                    });
+                }
+                world.write_model(@player_game_state);
+            }
 
             // Move to next player
             let next_turn = (game_state.current_turn + 1) % game_state.players.len().try_into().unwrap();
@@ -455,6 +575,47 @@ pub mod board_actions {
             true
         }
 
+        fn pay_bail(ref self: ContractState, game_id: u64) -> bool {
+            let mut world = self.world_default();
+            let player = get_caller_address();
+            let current_time = get_block_timestamp();
+
+            // Validate game state and turn
+            let game_state: GameState = world.read_model(game_id);
+            assert!(game_state.status == GameStatus::Active, "Game not active");
+            let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
+            assert!(player == current_player, "Not your turn");
+
+            // Check player is in jail
+            let mut player_game_state: PlayerGameState = world.read_model((player, game_id));
+            assert!(player_game_state.is_in_jail, "Not in jail");
+
+            // Check balance
+            let mut player_currency: GameCurrency = world.read_model((game_id, player));
+            assert!(player_currency.balance >= JAIL_BAIL_COST, "Insufficient funds for bail");
+
+            // Pay bail
+            player_currency.balance -= JAIL_BAIL_COST;
+            player_currency.total_spent += JAIL_BAIL_COST;
+
+            // Free player
+            player_game_state.is_in_jail = false;
+            player_game_state.jail_turns = 0;
+
+            // Write updates
+            world.write_model(@player_currency);
+            world.write_model(@player_game_state);
+
+            world.emit_event(@PlayerFreed {
+                game_id,
+                player,
+                method: 'bail',
+                timestamp: current_time,
+            });
+
+            true
+        }
+
         fn get_current_player(self: @ContractState, game_id: u64) -> ContractAddress {
             let world = self.world_default();
             let game_state: GameState = world.read_model(game_id);
@@ -469,7 +630,7 @@ pub mod board_actions {
 
         fn can_buy_property(self: @ContractState, player: ContractAddress, game_id: u64, property_id: u8) -> bool {
             let world = self.world_default();
-            
+
             // Check property availability
             let property: Property = world.read_model((game_id, property_id));
             if property.owner.is_some() {
@@ -502,7 +663,7 @@ pub mod board_actions {
 
         fn _calculate_rent(self: @ContractState, property: Property, game_id: u64) -> u256 {
             let base_rent = (property.current_value * property.rent_multiplier) / 100;
-            
+
             // Apply development multiplier
             let development_multiplier = match property.development_level {
                 0 => 1,
@@ -513,30 +674,30 @@ pub mod board_actions {
                 5 => 75, // Hotel
                 _ => 1,
             };
-            
+
             base_rent * development_multiplier.into()
         }
 
         fn _owns_color_group(self: @ContractState, player: ContractAddress, game_id: u64, color_group: PropertyGroup) -> bool {
             let world = self.world_default();
-            
+
             // Get all property IDs for this color group
             let property_ids = self._get_property_ids_for_group(color_group);
-            
+
             // Check if player owns all properties in the group
             let mut i = 0;
             let mut owns_all = true;
             while i < property_ids.len() {
                 let property_id = *property_ids.at(i);
                 let property: Property = world.read_model((game_id, property_id));
-                
+
                 if property.owner != Option::Some(player) {
                     owns_all = false;
                     break;
                 }
                 i += 1;
             };
-            
+
             owns_all
         }
 
