@@ -14,7 +14,7 @@ use whale_opoly::models::{
 #[starknet::interface]
 pub trait IBoardActions<T> {
     fn roll_dice(ref self: T, game_id: u64) -> (u8, u8);
-    fn move_player(ref self: T, game_id: u64, steps: u8) -> bool;
+    fn move_player(ref self: T, game_id: u64) -> bool;
     fn buy_property(ref self: T, game_id: u64, property_id: u8) -> bool;
     fn pay_rent(ref self: T, game_id: u64, property_id: u8) -> bool;
     fn mortgage_property(ref self: T, game_id: u64, property_id: u8) -> bool;
@@ -25,6 +25,7 @@ pub trait IBoardActions<T> {
     fn get_player_position(self: @T, player: ContractAddress, game_id: u64) -> u8;
     fn can_buy_property(self: @T, player: ContractAddress, game_id: u64, property_id: u8) -> bool;
     fn pay_bail(ref self: T, game_id: u64) -> bool;
+    fn force_skip_turn(ref self: T, game_id: u64) -> bool;
 }
 
 // ===== EVENTS =====
@@ -174,6 +175,11 @@ pub mod board_actions {
             let dice2 = (((seed / 7) % 6) + 1).try_into().unwrap();
             let total = dice1 + dice2;
 
+            // Store dice total in player position for move_player to consume
+            let mut player_position: PlayerPosition = world.read_model((player, game_id));
+            player_position.moves_remaining = total;
+            world.write_model(@player_position);
+
             // Emit event
             world.emit_event(@DiceRolled {
                 game_id,
@@ -187,7 +193,7 @@ pub mod board_actions {
             (dice1, dice2)
         }
 
-        fn move_player(ref self: ContractState, game_id: u64, steps: u8) -> bool {
+        fn move_player(ref self: ContractState, game_id: u64) -> bool {
             let mut world = self.world_default();
             let player = get_caller_address();
             let current_time = get_block_timestamp();
@@ -199,8 +205,21 @@ pub mod board_actions {
             let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
             assert!(player == current_player, "Not your turn");
 
-            // Get current position
+            // Get current position and stored dice roll
             let mut player_position: PlayerPosition = world.read_model((player, game_id));
+            let steps = player_position.moves_remaining;
+            assert!(steps > 0, "Must roll dice first");
+
+            // Check jail FIRST -- before any position/salary calculations
+            let player_game_state: PlayerGameState = world.read_model((player, game_id));
+            if player_game_state.is_in_jail {
+                // Clear moves_remaining so player must roll again next turn
+                player_position.moves_remaining = 0;
+                world.write_model(@player_position);
+                // Player is in jail, cannot move
+                return false;
+            }
+
             let from_position = player_position.position;
 
             // Calculate new position
@@ -218,13 +237,6 @@ pub mod board_actions {
                 world.write_model(@player_currency);
             }
 
-            // Check if player is in jail — cannot move normally
-            let player_game_state: PlayerGameState = world.read_model((player, game_id));
-            if player_game_state.is_in_jail {
-                // Player is in jail, cannot move
-                return false;
-            }
-
             // Check if landing on "Go to Jail"
             if to_position == GO_TO_JAIL_POSITION {
                 to_position = JAIL_POSITION;
@@ -236,9 +248,10 @@ pub mod board_actions {
                 pgs.jail_turns = 0;
                 world.write_model(@pgs);
 
-                // Update position to jail
+                // Update position to jail and clear moves_remaining
                 player_position.position = JAIL_POSITION;
                 player_position.last_move_time = current_time;
+                player_position.moves_remaining = 0;
                 world.write_model(@player_position);
 
                 world.emit_event(@PlayerJailed {
@@ -260,9 +273,10 @@ pub mod board_actions {
                 return true;
             }
 
-            // Update position
+            // Update position and clear moves_remaining
             player_position.position = to_position;
             player_position.last_move_time = current_time;
+            player_position.moves_remaining = 0;
             world.write_model(@player_position);
 
             // Emit event
@@ -616,6 +630,38 @@ pub mod board_actions {
             true
         }
 
+        fn force_skip_turn(ref self: ContractState, game_id: u64) -> bool {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+            let current_time = get_block_timestamp();
+
+            let mut game_state: GameState = world.read_model(game_id);
+            assert!(game_state.status == GameStatus::Active, "Game not active");
+
+            // Any player in the game can force-skip if turn timed out
+            assert!(self._is_player_in_game(game_state.players, caller), "Not a player");
+            assert!(current_time > game_state.turn_deadline, "Turn not timed out yet");
+
+            let current_player = self._get_current_player_internal(game_state.players, game_state.current_turn);
+
+            // Advance to next turn
+            let next_turn = (game_state.current_turn + 1) % game_state.players.len().try_into().unwrap();
+            game_state.current_turn = next_turn;
+            game_state.turn_deadline = current_time + TURN_TIMEOUT;
+
+            world.write_model(@game_state);
+
+            let next_player = self._get_current_player_internal(game_state.players, next_turn);
+            world.emit_event(@TurnEnded {
+                game_id,
+                player: current_player,
+                next_player,
+                timestamp: current_time,
+            });
+
+            true
+        }
+
         fn get_current_player(self: @ContractState, game_id: u64) -> ContractAddress {
             let world = self.world_default();
             let game_state: GameState = world.read_model(game_id);
@@ -659,6 +705,19 @@ pub mod board_actions {
 
         fn _get_current_player_internal(self: @ContractState, players: Span<ContractAddress>, current_turn: u8) -> ContractAddress {
             *players.at(current_turn.into())
+        }
+
+        fn _is_player_in_game(self: @ContractState, players: Span<ContractAddress>, player: ContractAddress) -> bool {
+            let mut i: u32 = 0;
+            let mut found = false;
+            while i < players.len() {
+                if *players.at(i) == player {
+                    found = true;
+                    break;
+                }
+                i += 1;
+            };
+            found
         }
 
         fn _calculate_rent(self: @ContractState, property: Property, game_id: u64) -> u256 {
