@@ -145,8 +145,9 @@ pub struct EventChain {
 
 // ===== ENUMS =====
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum InterventionType {
+    #[default]
     MarketStabilization,    // Reduce volatility
     LiquidityInjection,     // Add money to market
     PriceSupport,          // Prevent property values from falling too low
@@ -154,8 +155,9 @@ pub enum InterventionType {
     EmergencyBailout,      // Help bankrupt players
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum EventTrigger {
+    #[default]
     Scheduled,             // Regular scheduled event
     PlayerAction,          // Triggered by player behavior
     Economic,              // Triggered by economic conditions

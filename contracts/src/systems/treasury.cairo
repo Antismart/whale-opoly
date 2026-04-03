@@ -157,8 +157,9 @@ pub struct WithdrawalRequest {
 
 // ===== ENUMS =====
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum EmergencyActionType {
+    #[default]
     Pause,
     Resume,
     ForceTransfer,

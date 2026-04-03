@@ -172,8 +172,9 @@ pub struct SecurityAlert {
 
 // ===== ENUMS =====
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum GameStatus {
+    #[default]
     Lobby,
     Starting,
     Active,
@@ -182,23 +183,26 @@ pub enum GameStatus {
     Finished,
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum GameTier {
+    #[default]
     Bronze,   // 0.01 ETH
     Silver,   // 0.1 ETH
     Gold,     // 1 ETH
     Platinum, // 10 ETH
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum VerificationTier {
+    #[default]
     Basic,
     Enhanced,
     Premium,
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum PropertyGroup {
+    #[default]
     Brown,
     LightBlue,
     Pink,
@@ -212,8 +216,9 @@ pub enum PropertyGroup {
     Special,
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum TransactionType {
+    #[default]
     Purchase,
     Sale,
     Rent,
@@ -223,8 +228,9 @@ pub enum TransactionType {
     Tax,
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum MarketEventType {
+    #[default]
     Boom,
     Crash,
     Disaster,
@@ -232,8 +238,9 @@ pub enum MarketEventType {
     CryptoNews,
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum BalanceType {
+    #[default]
     HotWallet,
     WarmWallet,
     ColdStorage,
@@ -241,8 +248,9 @@ pub enum BalanceType {
     Operating,
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum SecurityAlertType {
+    #[default]
     SuspiciousActivity,
     LargeTransaction,
     UnusualPattern,
@@ -250,8 +258,9 @@ pub enum SecurityAlertType {
     PermissionViolation,
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum AlertSeverity {
+    #[default]
     Low,
     Medium,
     High,

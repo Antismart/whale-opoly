@@ -1,24 +1,24 @@
 [package]
-cairo-version = "=2.10.1"
 name = "whale_opoly"
-version = "1.6.0"
+version = "1.8.0"
 edition = "2024_07"
+
 [cairo]
 sierra-replace-ids = true
 
 [scripts]
-migrate = "sozo build && sozo migrate"                      # scarb run migrate
-spawn = "sozo execute whale_opoly-actions spawn --wait"     # scarb run spawn
-move = "sozo execute whale_opoly-actions move -c 1 --wait"  # scarb run move
+migrate = "sozo build && sozo migrate"
 
 [dependencies]
-dojo = { git = "https://github.com/dojoengine/dojo", tag = "v1.6.2" }
+dojo = "1.8.0"
+starknet = "2.13.1"
 
 [[target.starknet-contract]]
 build-external-contracts = ["dojo::world::world_contract::world"]
 
-[dev-dependencies]
-cairo_test = "=2.10.1"
-dojo_cairo_test = { git = "https://github.com/dojoengine/dojo", tag = "v1.6.2" }
+[tool.scarb]
+allow-prebuilt-plugins = ["dojo_cairo_macros"]
 
-[profile.sepolia]
+[dev-dependencies]
+cairo_test = "2.13.1"
+dojo_cairo_test = "1.8.0"

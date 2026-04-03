@@ -158,8 +158,9 @@ pub struct EconomicIndicators {
 
 // ===== ENUMS =====
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum BankingOpType {
+    #[default]
     Loan,
     Mortgage,
     Investment,

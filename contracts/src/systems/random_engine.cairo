@@ -144,14 +144,16 @@ pub struct DiceRollHistory {
 
 // ===== ENUMS =====
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum DeckType {
+    #[default]
     Chance,
     CommunityChest,
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum IntegrityIssue {
+    #[default]
     MissingCommitment,
     LateReveal,
     InvalidReveal,
@@ -159,8 +161,9 @@ pub enum IntegrityIssue {
     TimingAttack,
 }
 
-#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect)]
+#[derive(Copy, Drop, Serde, Debug, PartialEq, Introspect, DojoStore, Default)]
 pub enum RandomnessOperation {
+    #[default]
     DiceRoll,
     CardDraw,
     MarketEvent,
