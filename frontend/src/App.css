@@ -192,49 +192,89 @@ body {
   display: grid;
   grid-template-rows: repeat(11, 1fr);
   grid-template-columns: repeat(11, 1fr);
-  gap: 6px;
-  background: rgba(4, 10, 21, 0.7);
-  border: 2px solid var(--border-default);
-  box-shadow: 0 0 40px rgba(14, 165, 233, 0.06), inset 0 0 60px rgba(14, 165, 233, 0.03);
-  border-radius: 14px;
-  padding: 10px 10px 68px 10px;
+  gap: 3px;
+  background: linear-gradient(145deg, #040e1e, #061428, #041020);
+  border: 3px solid rgba(14, 165, 233, 0.2);
+  box-shadow:
+    0 0 60px rgba(14, 165, 233, 0.08),
+    inset 0 0 80px rgba(14, 165, 233, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.5);
+  border-radius: 16px;
+  padding: 8px 8px 68px 8px;
   width: var(--board-size);
   height: var(--board-size);
   margin: 0;
 }
 .monoTile {
   position: relative;
-  display:flex;
+  display: flex;
   flex-direction: column;
-  align-items:center;
-  justify-content:flex-end;
-  padding: 6px;
-  background: var(--surface-1);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 5px;
+  background: rgba(10, 22, 40, 0.6);
+  border: 1px solid rgba(14, 165, 233, 0.1);
+  border-radius: 6px;
   overflow: hidden;
   color: var(--muted);
   font-size: clamp(10px, 0.85vw, 12px);
-  text-align:center;
-  /* Allow tiles to shrink to fit the grid to avoid overlap at small sizes */
+  text-align: center;
   min-width: 0;
   min-height: 0;
-  transition: background 120ms ease, border-color 120ms ease, box-shadow 150ms ease;
+  transition: all 180ms ease;
   cursor: pointer;
+  z-index: 1;
 }
+
 .monoTile:hover {
-  background: var(--surface-2);
-  border-color: var(--border-default);
+  background: rgba(14, 165, 233, 0.08);
+  border-color: rgba(14, 165, 233, 0.25);
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.15);
+  transform: scale(1.02);
+  z-index: 5;
 }
 .monoTile.corner {
-  font-size: 11px;
-  font-weight: 700;
-  color: #fff;
+  font-size: clamp(11px, 1vw, 14px);
+  font-weight: 800;
+  color: var(--text-bright);
   justify-content: center;
-  /* Do not force larger min-size for corners to prevent crossing/overflow */
   min-width: 0;
   min-height: 0;
+  background: rgba(14, 165, 233, 0.06);
+  border: 2px solid rgba(14, 165, 233, 0.2);
+  z-index: 4;
 }
+
+/* GO - golden treasure start */
+.monoTile[data-id="0"] {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(14, 165, 233, 0.05));
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow: inset 0 0 20px rgba(245, 158, 11, 0.08);
+}
+.monoTile[data-id="0"] .label { color: var(--gold); }
+
+/* Jail - cold, restrictive */
+.monoTile[data-id="10"] {
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.12), rgba(14, 165, 233, 0.04));
+  border-color: rgba(100, 116, 139, 0.3);
+}
+.monoTile[data-id="10"] .label { color: #94a3b8; }
+
+/* Free Parking - safe harbor glow */
+.monoTile[data-id="20"] {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.08), rgba(14, 165, 233, 0.04));
+  border-color: rgba(20, 184, 166, 0.25);
+  box-shadow: inset 0 0 20px rgba(20, 184, 166, 0.06);
+}
+.monoTile[data-id="20"] .label { color: var(--accent-2); }
+
+/* Go to Jail - ominous red */
+.monoTile[data-id="30"] {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(14, 165, 233, 0.03));
+  border-color: rgba(239, 68, 68, 0.25);
+  box-shadow: inset 0 0 20px rgba(239, 68, 68, 0.06);
+}
+.monoTile[data-id="30"] .label { color: #f87171; }
 .monoTile .index {
   position: absolute;
   top: 4px;
@@ -243,8 +283,8 @@ body {
   color: rgba(224, 242, 254, 0.5);
 }
 .monoTile .label {
-  margin-top: 6px;
-  line-height: 1.12;
+  margin-top: 4px;
+  line-height: 1.15;
   max-width: 95%;
   padding: 0 2px 2px 2px;
   overflow: hidden;
@@ -253,31 +293,61 @@ body {
   hyphens: auto;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2; line-clamp: 2;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.1px;
 }
 .monoTile.left .label, .monoTile.right .label { line-clamp: 4; -webkit-line-clamp: 4; }
 
-/* Slightly larger, responsive tile text */
-.monoTile.corner { font-size: clamp(12px, 1.05vw, 14px); }
 .monoTile .colorBar {
   position: absolute;
-  left: 0; right: 0; height: 6px;
-  border-radius: 4px 4px 0 0;
+  left: 0; right: 0;
+  height: 5px;
+  border-radius: 3px 3px 0 0;
+  box-shadow: 0 0 8px currentColor;
+  opacity: 0.85;
 }
 
 /* Tile states */
 .monoTile.selected {
-  outline: 2px solid var(--accent);
-  box-shadow: 0 0 12px rgba(14, 165, 233, 0.25), inset 0 0 0 1px rgba(14, 165, 233, 0.12);
-  background: rgba(14, 165, 233, 0.06);
+  outline: none;
+  border-color: var(--accent);
+  box-shadow:
+    0 0 16px rgba(14, 165, 233, 0.3),
+    0 0 4px rgba(14, 165, 233, 0.5),
+    inset 0 0 12px rgba(14, 165, 233, 0.08);
+  background: rgba(14, 165, 233, 0.1);
+  z-index: 6;
+  transform: scale(1.03);
 }
 .monoTile .ownerStripe { position: absolute; width: 6px; height: 100%; right: 0; top: 0; border-radius: 0 8px 8px 0; opacity: 0.9; }
 .tokensWrap { position: absolute; bottom: 4px; left: 4px; display: flex; gap: 2px; }
 .token { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.4); box-shadow: 0 0 8px rgba(0,0,0,0.3); }
-.houses { position: absolute; top: 6px; right: 6px; display:flex; gap: 3px; pointer-events: none; }
-.house { width: 8px; height: 8px; background: #35d07f; border: 1px solid #0f7a45; border-radius: 2px; }
-.hotel { width: 10px; height: 10px; background: #ff5b5b; border: 1px solid #8a2020; border-radius: 2px; }
-.monoTile.mortgaged { filter: grayscale(0.6) brightness(0.85); }
+.houses { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; pointer-events: none; }
+.house {
+  width: 7px; height: 7px;
+  background: #22c55e;
+  border: 1px solid #15803d;
+  border-radius: 2px;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+}
+.hotel {
+  width: 9px; height: 9px;
+  background: #ef4444;
+  border: 1px solid #991b1b;
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+.monoTile.mortgaged {
+  filter: grayscale(0.7) brightness(0.6);
+  opacity: 0.7;
+}
+.monoTile.mortgaged:hover {
+  filter: grayscale(0.5) brightness(0.7);
+  opacity: 0.85;
+}
 
 /* Players panel */
 .playersPanel { display: grid; gap: 8px; }
@@ -319,11 +389,9 @@ body {
 
 /* Wrap to enforce square board and spacing for dice */
 .boardWrap { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
-.boardMono { width: var(--board-size); height: var(--board-size); margin: 0; }
 .diceRow { display: flex; align-items: center; gap: 16px; align-self: center; }
 
 /* Position dice inside the board area, offset above bottom */
-.rollBtn { min-width: 52px; font-size: 12px; }
 
 /* Orientation tweaks for sides */
 .monoTile.bottom { flex-direction: column; }
@@ -341,15 +409,33 @@ body {
 .boardCenter {
   grid-row: 2 / 11;
   grid-column: 2 / 11;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-direction: column;
   background:
-    radial-gradient(ellipse 500px 250px at 50% 30%, rgba(14, 165, 233, 0.08), transparent),
-    radial-gradient(ellipse 300px 200px at 40% 60%, rgba(20, 184, 166, 0.06), transparent);
-  border-radius: 12px;
-  border: 1px dashed var(--border-subtle);
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(14, 165, 233, 0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 30% 60%, rgba(20, 184, 166, 0.04), transparent),
+    radial-gradient(ellipse 40% 30% at 70% 30%, rgba(14, 165, 233, 0.03), transparent);
+  border-radius: 10px;
+  border: none;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.boardCenter::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 200px 200px at 50% 50%, rgba(14, 165, 233, 0.04), transparent);
+  animation: caustic 8s ease-in-out infinite alternate;
+}
+
+@keyframes caustic {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  50% { transform: translate(10px, -10px) scale(1.1); opacity: 0.8; }
+  100% { transform: translate(-5px, 5px) scale(0.95); opacity: 0.6; }
 }
 .centerLogo { max-width: 68%; max-height: 68%; object-fit: contain; opacity: 0.95; filter: drop-shadow(0 4px 20px rgba(14, 165, 233, 0.25)); }
 .centerMark {
@@ -366,29 +452,35 @@ body {
 .diceTray {
   position: absolute;
   left: 50%;
-  bottom: 16px;
+  bottom: 12px;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   z-index: 3;
-  background: rgba(4, 10, 21, 0.92);
-  border: 1px solid var(--border-default);
-  box-shadow: var(--glow-subtle), 0 4px 16px rgba(0,0,0,0.3);
-  border-radius: 12px;
-  padding: 10px 18px;
+  background: linear-gradient(180deg, rgba(10, 22, 40, 0.95), rgba(4, 10, 21, 0.98));
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  box-shadow: 0 -4px 20px rgba(14, 165, 233, 0.08), 0 4px 16px rgba(0,0,0,0.4);
+  border-radius: 14px;
+  padding: 10px 20px;
 }
 .die {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #0a1628 60%, #0f2440 100%);
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(145deg, #0c1f38, #0a1628);
   border-radius: 10px;
-  border: 2px solid rgba(14, 165, 233, 0.25);
+  border: 2px solid rgba(14, 165, 233, 0.2);
   display: grid;
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
   gap: 2px;
   position: relative;
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 12px rgba(0,0,0,0.4);
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+
+.die:not(.rolling):hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 16px rgba(14, 165, 233, 0.15);
 }
 .die.rolling { animation: shake 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite; }
 @keyframes shake {
@@ -418,9 +510,30 @@ body {
 .pip.pos-8 { grid-row: 3; grid-column: 2; }
 .pip.pos-9 { grid-row: 3; grid-column: 3; }
 .rollBtn {
-  margin-left: 10px;
-  min-width: 56px;
-  font-size: 14px;
+  margin-left: 6px;
+  min-width: 64px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(20, 184, 166, 0.2));
+  border: 1px solid rgba(14, 165, 233, 0.4);
+  border-radius: 10px;
+  color: var(--text-bright);
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.15);
+  transition: all 200ms ease;
+}
+.rollBtn:hover:not(:disabled) {
+  box-shadow: 0 0 20px rgba(14, 165, 233, 0.25);
+  transform: translateY(-1px);
+  border-color: rgba(14, 165, 233, 0.6);
+}
+.rollBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 
 /* TwoCol panel layout for left-aligned board */
@@ -493,14 +606,11 @@ body {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; max-width: 100%;
 }
 
-/* Make labels a bit clearer without heavy shadows */
-.monoTile .label { color: #f2f4fa; text-shadow: 0 1px 1px rgba(0,0,0,0.18); letter-spacing: 0.15px; }
+/* Label clarity overrides for sides */
 .monoTile.top .label, .monoTile.bottom .label { -webkit-line-clamp: 2; line-clamp: 2; }
 .monoTile.left .label, .monoTile.right .label { -webkit-line-clamp: 3; line-clamp: 3; }
 .monoTile.corner .label { -webkit-line-clamp: 3; line-clamp: 3; }
 
-/* Ensure color bars don't overlap text too tightly */
-.monoTile .colorBar { height: 6px; }
 .monoTile.top .label { margin-bottom: 2px; }
 .monoTile.bottom .label { margin-top: 6px; }
 
@@ -526,29 +636,50 @@ body {
 /* Prevent color bars from crossing into corners */
 .monoTile.corner .colorBar { display: none; }
 
-/* --- Tweak label layout for cleaner look --- */
-.monoTile .label { font-size: 0.96em; }
-
-/* Allow up to 3 lines everywhere for better fit */
-/* Balanced wrapping for horizontal tiles; slightly more room for vertical sides */
+/* Balanced wrapping for horizontal tiles */
 .monoTile.top .label, .monoTile.bottom .label { text-wrap: balance; }
-.monoTile.left .label, .monoTile.right .label { letter-spacing: 0.05px; }
 
-/* Special kinds: style tweaks for readability */
-.monoTile.kind-property .label { font-weight: 700; letter-spacing: 0.2px; }
-.monoTile.kind-chance .label,
-.monoTile.kind-chest .label { font-weight: 700; letter-spacing: 0.3px; }
-.monoTile.kind-rail .label,
-.monoTile.kind-utility .label { font-variant-caps: small-caps; letter-spacing: 0.25px; }
-.monoTile.kind-tax .label { font-weight: 700; }
-.monoTile.kind-gotojail .label { font-weight: 800; letter-spacing: 0.35px; }
+/* Chance - mysterious blue shimmer */
+.monoTile.kind-chance {
+  background: rgba(14, 165, 233, 0.06);
+  border-color: rgba(14, 165, 233, 0.15);
+}
+.monoTile.kind-chance .label { font-weight: 700; color: var(--accent); }
 
-/* Small glyphs for special tiles to aid scanning */
-.monoTile.kind-chance .label::before { content: '?'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
-.monoTile.kind-chest .label::before { content: '\1F4E6'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
-.monoTile.kind-rail .label::before { content: '\1F686'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
-.monoTile.kind-utility .label::before { content: '\1F50C'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
-.monoTile.kind-tax .label::before { content: '\1F4B8'; display: block; font-size: 14px; margin-bottom: 2px; opacity: 0.9; }
+/* Chest - golden treasure */
+.monoTile.kind-chest {
+  background: rgba(245, 158, 11, 0.04);
+  border-color: rgba(245, 158, 11, 0.12);
+}
+.monoTile.kind-chest .label { font-weight: 700; color: var(--gold); }
+
+/* Tax - warning orange */
+.monoTile.kind-tax {
+  background: rgba(249, 115, 22, 0.05);
+  border-color: rgba(249, 115, 22, 0.12);
+}
+.monoTile.kind-tax .label { font-weight: 700; color: var(--warn); }
+
+/* Rail - metallic feel */
+.monoTile.kind-rail {
+  background: rgba(148, 163, 184, 0.06);
+  border-color: rgba(148, 163, 184, 0.12);
+}
+.monoTile.kind-rail .label { font-variant-caps: small-caps; letter-spacing: 0.3px; color: #cbd5e1; }
+
+/* Utility - industrial */
+.monoTile.kind-utility {
+  background: rgba(168, 162, 158, 0.05);
+  border-color: rgba(168, 162, 158, 0.1);
+}
+.monoTile.kind-utility .label { font-variant-caps: small-caps; color: #a8a29e; }
+
+/* Go to jail tile */
+.monoTile.kind-gotojail .label { font-weight: 800; color: #f87171; }
+
+/* Property tiles - bold labels */
+.monoTile.kind-property .label { font-weight: 600; color: var(--text); }
+
 
 /* Keep label area clear from color bars: add small padding margin */
 .monoTile.top .label { margin-top: 2px; margin-bottom: 0; }
@@ -558,55 +689,16 @@ body {
 /* Make index smaller and subtler */
 .monoTile .index { font-size: 9px; color: rgba(224, 242, 254, 0.4); }
 
-/* Slightly more padding to avoid crowding */
-.monoTile { padding: 7px; }
-
-/* Corner clarity enhancements */
-.monoTile.corner { position: relative; padding: 10px; font-size: clamp(13px, 1.1vw, 16px); }
-.monoTile.corner .label { margin-top: 6px; font-weight: 800; letter-spacing: 0.2px; }
-.monoTile.corner::after {
-  content: attr(data-corner);
-  position: absolute;
-  font-size: 9px;
-  color: rgba(224, 242, 254, 0.55);
-  bottom: 6px; right: 6px;
-}
-/* Specific corner icons/arrows */
-.monoTile.corner[data-id="0"] .label::before {
-  content: '\27A4';
-  display: block;
-  font-size: 16px;
-  margin-bottom: 4px;
-  color: var(--good);
-}
-.monoTile.corner[data-id="30"] .label::before {
-  content: '\26D3';
-  display: block; font-size: 16px; margin-bottom: 4px; color: var(--warn);
-}
-.monoTile.corner[data-id="10"] .label::before { content: '\26D3'; display:block; font-size: 16px; margin-bottom: 4px; color: #a0b3c7; }
-.monoTile.corner[data-id="20"] .label::before { content: '\2605'; display:block; font-size: 16px; margin-bottom: 4px; color: #ffd166; }
-
 /* Side tile readability: use horizontal text, keep color bars on edges */
 .monoTile.left, .monoTile.right { writing-mode: horizontal-tb; transform: none; }
 .monoTile.left .colorBar { width: 6px; height: auto; position: absolute; top: 0; bottom: 0; right: 0; left: auto; border-radius: 0 8px 8px 0; }
 .monoTile.right .colorBar { width: 6px; height: auto; position: absolute; top: 0; bottom: 0; left: 0; right: auto; border-radius: 8px 0 0 8px; }
 
-/* Emphasize corners with thicker border */
-.monoTile.corner { border-width: 2px; border-color: rgba(14, 165, 233, 0.45); box-shadow: inset 0 0 0 3px rgba(14, 165, 233, 0.12); }
-
 /* Allow longer corner labels without truncation */
 .monoTile.corner .label { -webkit-line-clamp: unset; line-clamp: unset; white-space: normal; }
 
-/* Corner clarity improvements */
+/* Prevent color bars from crossing into corners */
 .monoTile.corner .colorBar { display: none; }
-/* Keep same translucent background as other tiles to avoid white-on-white text */
-.monoTile.corner { z-index: 1; background: var(--surface-2); }
-
-/* Emphasize borders around corner tiles to separate from adjacent side tiles */
-.monoTile[data-id="0"] { border-right-width: 4px; border-bottom-width: 4px; }
-.monoTile[data-id="10"] { border-left-width: 4px; border-bottom-width: 4px; }
-.monoTile[data-id="20"] { border-left-width: 4px; border-top-width: 4px; }
-.monoTile[data-id="30"] { border-right-width: 4px; border-top-width: 4px; }
 
 /* Keep color bars from touching corners; add gentle rounding */
 .monoTile.top .colorBar,
@@ -624,11 +716,7 @@ body {
   border-radius: 3px;
 }
 
-/* Ensure the center panel stays beneath tiles and doesn't eat clicks */
-.boardCenter { z-index: 0; pointer-events: none; }
-.monoTile { z-index: 1; position: relative; }
 /* Layering: corners highest, horizontal sides above vertical sides */
-.monoTile.corner { z-index: 4; }
 .monoTile.top, .monoTile.bottom { z-index: 3; }
 .monoTile.left, .monoTile.right { z-index: 2; }
 
