@@ -1,0 +1,673 @@
+/* =======================================================================
+   Board.css — Whale-Opoly Game Board
+   Self-contained styles. No dependency on App.css board rules.
+   ======================================================================= */
+
+/* --- Wrapper --------------------------------------------------------- */
+.boardWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* --- Board Grid ------------------------------------------------------ */
+.boardMono {
+  position: relative;
+  display: grid;
+  grid-template-rows: repeat(11, 1fr);
+  grid-template-columns: repeat(11, 1fr);
+  gap: 3px;
+  width: var(--board-size);
+  height: var(--board-size);
+  padding: 8px 8px 68px 8px;
+  border-radius: 16px;
+
+  /* Deep ocean floor */
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 100%, rgba(14, 165, 233, 0.04), transparent),
+    radial-gradient(ellipse 50% 40% at 0% 50%, rgba(20, 184, 166, 0.03), transparent),
+    linear-gradient(145deg, #040e1e, #061428, #041020);
+
+  /* Physical board edge */
+  border: 3px solid rgba(14, 165, 233, 0.2);
+  box-shadow:
+    0 0 60px rgba(14, 165, 233, 0.08),
+    inset 0 0 80px rgba(14, 165, 233, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* --- Tile Base ------------------------------------------------------- */
+.monoTile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 5px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  cursor: pointer;
+  z-index: 1;
+
+  /* Dark glass */
+  background: rgba(10, 22, 40, 0.6);
+  border: 1px solid rgba(14, 165, 233, 0.1);
+  border-radius: 6px;
+
+  color: var(--muted);
+  font-size: clamp(10px, 0.85vw, 12px);
+  text-align: center;
+
+  transition: all 180ms ease;
+}
+
+/* Hover */
+.monoTile:hover {
+  background: rgba(14, 165, 233, 0.08);
+  border-color: rgba(14, 165, 233, 0.25);
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.15);
+  transform: translateY(-1px);
+  z-index: 5;
+}
+
+/* --- Labels ---------------------------------------------------------- */
+.monoTile .label {
+  margin-top: 4px;
+  line-height: 1.15;
+  max-width: 95%;
+  padding: 0 2px 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.1px;
+}
+
+/* Side-specific label tweaks */
+.monoTile.left .label,
+.monoTile.right .label {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  position: static;
+  top: auto;
+  left: auto;
+  transform: none;
+  transform-origin: initial;
+  width: auto;
+  text-align: center;
+  white-space: normal;
+  text-overflow: clip;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  max-width: 100%;
+  margin-top: 4px;
+}
+
+.monoTile.top .label {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  margin-top: 2px;
+  margin-bottom: 0;
+  text-wrap: balance;
+}
+
+.monoTile.bottom .label {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  margin-top: 6px;
+  text-wrap: balance;
+}
+
+/* --- Side Orientation ------------------------------------------------ */
+.monoTile.bottom {
+  flex-direction: column;
+}
+
+.monoTile.top {
+  flex-direction: column-reverse;
+}
+
+.monoTile.left,
+.monoTile.right {
+  writing-mode: horizontal-tb;
+  text-orientation: initial;
+  transform: none;
+}
+
+/* Z-layering: horizontal sides above vertical */
+.monoTile.top,
+.monoTile.bottom {
+  z-index: 3;
+}
+
+.monoTile.left,
+.monoTile.right {
+  z-index: 2;
+}
+
+/* --- Color Bars ------------------------------------------------------ */
+.monoTile .colorBar {
+  position: absolute;
+  border-radius: 3px;
+  opacity: 0.85;
+}
+
+/* Bottom tiles: bar on top */
+.monoTile.bottom .colorBar {
+  top: 0;
+  left: 5px;
+  right: 5px;
+  height: 6px;
+  width: calc(100% - 10px);
+  border-radius: 3px;
+}
+
+/* Top tiles: bar on bottom */
+.monoTile.top .colorBar {
+  bottom: 0;
+  left: 5px;
+  right: 5px;
+  height: 6px;
+  width: calc(100% - 10px);
+  border-radius: 3px;
+}
+
+/* Left tiles: bar on right edge */
+.monoTile.left .colorBar {
+  width: 6px;
+  height: calc(100% - 10px);
+  top: 5px;
+  bottom: 5px;
+  right: 0;
+  left: auto;
+  border-radius: 0 4px 4px 0;
+}
+
+/* Right tiles: bar on left edge */
+.monoTile.right .colorBar {
+  width: 6px;
+  height: calc(100% - 10px);
+  top: 5px;
+  bottom: 5px;
+  left: 0;
+  right: auto;
+  border-radius: 4px 0 0 4px;
+}
+
+/* Color bar glow — uses data-color via inline box-shadow in JSX */
+
+/* --- Corners --------------------------------------------------------- */
+.monoTile.corner {
+  font-size: clamp(11px, 1vw, 14px);
+  font-weight: 800;
+  color: var(--text-bright);
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  background: rgba(14, 165, 233, 0.06);
+  border: 2px solid rgba(14, 165, 233, 0.2);
+  z-index: 4;
+}
+
+.monoTile.corner .label {
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  white-space: normal;
+  margin-top: 6px;
+  letter-spacing: 0.25px;
+  text-transform: uppercase;
+}
+
+.monoTile.corner .colorBar {
+  display: none;
+}
+
+/* GO — warm golden treasure */
+.monoTile[data-id="0"] {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(14, 165, 233, 0.05));
+  border-color: rgba(245, 158, 11, 0.35);
+  box-shadow: inset 0 0 24px rgba(245, 158, 11, 0.1), 0 0 12px rgba(245, 158, 11, 0.06);
+}
+
+.monoTile[data-id="0"] .label {
+  color: #fbbf24;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+/* Jail — cool grey-blue, subdued */
+.monoTile[data-id="10"] {
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.14), rgba(14, 165, 233, 0.04));
+  border-color: rgba(100, 116, 139, 0.35);
+  box-shadow: inset 0 0 20px rgba(100, 116, 139, 0.06);
+}
+
+.monoTile[data-id="10"] .label {
+  color: #94a3b8;
+  text-shadow: 0 0 8px rgba(100, 116, 139, 0.2);
+}
+
+/* Free Stop — calm teal safe harbor */
+.monoTile[data-id="20"] {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(14, 165, 233, 0.04));
+  border-color: rgba(20, 184, 166, 0.3);
+  box-shadow: inset 0 0 24px rgba(20, 184, 166, 0.08), 0 0 12px rgba(20, 184, 166, 0.04);
+}
+
+.monoTile[data-id="20"] .label {
+  color: #2dd4bf;
+  text-shadow: 0 0 10px rgba(20, 184, 166, 0.25);
+}
+
+/* Go To Jail — deep red warning */
+.monoTile[data-id="30"] {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(14, 165, 233, 0.03));
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: inset 0 0 24px rgba(239, 68, 68, 0.08), 0 0 12px rgba(239, 68, 68, 0.04);
+}
+
+.monoTile[data-id="30"] .label {
+  color: #f87171;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+/* --- By Kind --------------------------------------------------------- */
+
+/* Property — bold label */
+.monoTile.kind-property .label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Chance — mysterious blue-purple shimmer */
+.monoTile.kind-chance {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.07), rgba(139, 92, 246, 0.05));
+  border-color: rgba(14, 165, 233, 0.18);
+}
+
+.monoTile.kind-chance .label {
+  font-weight: 700;
+  color: #38bdf8;
+  text-shadow: 0 0 8px rgba(14, 165, 233, 0.3);
+}
+
+/* Chest — warm gold treasure glow */
+.monoTile.kind-chest {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), rgba(234, 179, 8, 0.03));
+  border-color: rgba(245, 158, 11, 0.15);
+}
+
+.monoTile.kind-chest .label {
+  font-weight: 700;
+  color: #fbbf24;
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
+}
+
+/* Tax — warning orange tint */
+.monoTile.kind-tax {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.06), rgba(245, 158, 11, 0.03));
+  border-color: rgba(249, 115, 22, 0.15);
+}
+
+.monoTile.kind-tax .label {
+  font-weight: 700;
+  color: #fb923c;
+  text-shadow: 0 0 8px rgba(249, 115, 22, 0.2);
+}
+
+/* Rail — metallic silver / steel */
+.monoTile.kind-rail {
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.08), rgba(100, 116, 139, 0.04));
+  border-color: rgba(148, 163, 184, 0.15);
+}
+
+.monoTile.kind-rail .label {
+  font-variant-caps: small-caps;
+  letter-spacing: 0.3px;
+  color: #cbd5e1;
+  text-shadow: 0 0 6px rgba(148, 163, 184, 0.2);
+}
+
+/* Utility — industrial grey-green */
+.monoTile.kind-utility {
+  background: linear-gradient(135deg, rgba(168, 162, 158, 0.06), rgba(20, 184, 166, 0.03));
+  border-color: rgba(168, 162, 158, 0.12);
+}
+
+.monoTile.kind-utility .label {
+  font-variant-caps: small-caps;
+  color: #a8a29e;
+  text-shadow: 0 0 6px rgba(168, 162, 158, 0.15);
+}
+
+/* Go to jail kind */
+.monoTile.kind-gotojail .label {
+  font-weight: 800;
+  color: #f87171;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
+}
+
+/* --- Selected Tile --------------------------------------------------- */
+.monoTile.selected {
+  outline: none;
+  border-color: rgba(14, 165, 233, 0.6);
+  background: rgba(14, 165, 233, 0.1);
+  transform: scale(1.03);
+  z-index: 6;
+  box-shadow:
+    0 0 6px rgba(14, 165, 233, 0.5),
+    0 0 18px rgba(14, 165, 233, 0.3),
+    0 0 40px rgba(14, 165, 233, 0.1),
+    inset 0 0 12px rgba(14, 165, 233, 0.08);
+  transition: all 180ms ease;
+}
+
+/* --- Mortgaged ------------------------------------------------------- */
+.monoTile.mortgaged {
+  filter: grayscale(0.7) brightness(0.6);
+  opacity: 0.7;
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      rgba(148, 163, 184, 0.06) 4px,
+      rgba(148, 163, 184, 0.06) 8px
+    );
+}
+
+.monoTile.mortgaged:hover {
+  filter: grayscale(0.5) brightness(0.7);
+  opacity: 0.85;
+}
+
+/* --- Owner Stripe ---------------------------------------------------- */
+.monoTile .ownerStripe {
+  position: absolute;
+  width: 4px;
+  height: 100%;
+  right: 0;
+  top: 0;
+  border-radius: 0 6px 6px 0;
+  opacity: 0.9;
+}
+
+/* --- Houses & Hotels ------------------------------------------------- */
+.houses {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.house {
+  width: 7px;
+  height: 7px;
+  background: #22c55e;
+  border: 1px solid #15803d;
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.hotel {
+  width: 10px;
+  height: 10px;
+  background: #ef4444;
+  border: 1px solid #991b1b;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+/* --- Player Tokens --------------------------------------------------- */
+.tokensWrap {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  display: flex;
+  gap: 3px;
+  z-index: 2;
+}
+
+.token {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 0, 0, 0.45);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.token.token-active {
+  animation: token-pulse 1.5s ease-in-out infinite;
+  z-index: 3;
+}
+
+/* --- Board Center ---------------------------------------------------- */
+.boardCenter {
+  grid-row: 2 / 11;
+  grid-column: 2 / 11;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  border-radius: 10px;
+  border: none;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  position: relative;
+
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(14, 165, 233, 0.06), transparent),
+    radial-gradient(ellipse 60% 45% at 25% 65%, rgba(20, 184, 166, 0.04), transparent),
+    radial-gradient(ellipse 50% 35% at 75% 30%, rgba(14, 165, 233, 0.03), transparent),
+    radial-gradient(circle at 50% 50%, rgba(4, 14, 30, 0.8), rgba(4, 10, 21, 0.95));
+}
+
+.boardCenter::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 220px 220px at 50% 50%, rgba(14, 165, 233, 0.04), transparent);
+  animation: caustic 8s ease-in-out infinite alternate;
+}
+
+.centerLogo {
+  max-width: 68%;
+  max-height: 68%;
+  object-fit: contain;
+  opacity: 0.95;
+  filter: drop-shadow(0 4px 24px rgba(14, 165, 233, 0.3));
+  position: relative;
+  z-index: 1;
+}
+
+.centerMark {
+  font-weight: 800;
+  letter-spacing: 1px;
+  font-size: 28px;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 20px rgba(14, 165, 233, 0.35);
+}
+
+.centerSub {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+/* --- Dice Tray ------------------------------------------------------- */
+.diceTray {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 10;
+  padding: 10px 22px;
+  border-radius: 14px;
+
+  background: linear-gradient(180deg, rgba(10, 22, 40, 0.95), rgba(4, 10, 21, 0.98));
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  box-shadow:
+    0 -4px 20px rgba(14, 165, 233, 0.08),
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(14, 165, 233, 0.08);
+}
+
+/* --- Die ------------------------------------------------------------- */
+.die {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 2px;
+  position: relative;
+
+  background: linear-gradient(145deg, #0c1f38, #0a1628);
+  border: 2px solid rgba(14, 165, 233, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+
+.die:not(.rolling):hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 6px 16px rgba(14, 165, 233, 0.15);
+}
+
+.die.rolling {
+  animation: shake 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}
+
+/* Pips */
+.pip {
+  width: 9px;
+  height: 9px;
+  background: #e0f2fe;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(14, 165, 233, 0.5);
+  margin: auto;
+}
+
+.pip.pos-1 { grid-row: 1; grid-column: 1; }
+.pip.pos-2 { grid-row: 1; grid-column: 2; }
+.pip.pos-3 { grid-row: 1; grid-column: 3; }
+.pip.pos-4 { grid-row: 2; grid-column: 1; }
+.pip.pos-5 { grid-row: 2; grid-column: 2; }
+.pip.pos-6 { grid-row: 2; grid-column: 3; }
+.pip.pos-7 { grid-row: 3; grid-column: 1; }
+.pip.pos-8 { grid-row: 3; grid-column: 2; }
+.pip.pos-9 { grid-row: 3; grid-column: 3; }
+
+/* --- Roll Button ----------------------------------------------------- */
+.rollBtn {
+  margin-left: 6px;
+  min-width: 68px;
+  padding: 9px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-bright);
+
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(20, 184, 166, 0.22));
+  border: 1px solid rgba(14, 165, 233, 0.45);
+  box-shadow: 0 0 14px rgba(14, 165, 233, 0.18);
+  transition: all 200ms ease;
+}
+
+.rollBtn:hover:not(:disabled) {
+  box-shadow: 0 0 24px rgba(14, 165, 233, 0.3);
+  transform: translateY(-1px);
+  border-color: rgba(14, 165, 233, 0.65);
+}
+
+.rollBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* --- Animations ------------------------------------------------------ */
+@keyframes caustic {
+  0%   { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  33%  { transform: translate(12px, -8px) scale(1.08); opacity: 0.7; }
+  66%  { transform: translate(-8px, 10px) scale(1.12); opacity: 0.8; }
+  100% { transform: translate(-5px, 5px) scale(0.95); opacity: 0.6; }
+}
+
+@keyframes shake {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  15%  { transform: translate(-3px, 2px) rotate(-6deg) scale(1.05); }
+  30%  { transform: translate(3px, -2px) rotate(5deg) scale(0.97); }
+  45%  { transform: translate(-2px, 3px) rotate(-4deg) scale(1.03); }
+  60%  { transform: translate(3px, -1px) rotate(6deg) scale(0.98); }
+  75%  { transform: translate(-1px, 2px) rotate(-3deg) scale(1.01); }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+
+@keyframes token-pulse {
+  0%   { transform: scale(1); box-shadow: 0 0 8px currentColor; }
+  50%  { transform: scale(1.15); box-shadow: 0 0 16px currentColor, 0 0 28px currentColor; }
+  100% { transform: scale(1); box-shadow: 0 0 8px currentColor; }
+}
+
+/* --- Reduced Motion -------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .boardCenter::before { animation: none; }
+  .die.rolling { animation: none; }
+  .token.token-active { animation: none; }
+}
+
+/* --- Responsive ------------------------------------------------------ */
+@media (max-width: 600px) {
+  .boardMono {
+    gap: 2px;
+    padding: 4px 4px 60px 4px;
+  }
+
+  .monoTile {
+    padding: 3px;
+    font-size: 9px;
+  }
+
+  .monoTile .label {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .diceTray {
+    padding: 8px 14px;
+    gap: 10px;
+  }
+
+  .die {
+    width: 36px;
+    height: 36px;
+  }
+
+  .pip {
+    width: 7px;
+    height: 7px;
+  }
+}
