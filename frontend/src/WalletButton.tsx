@@ -50,18 +50,27 @@ export function WalletButton() {
     );
   }
 
+  // If there's only one connector, connect directly without showing a dropdown
+  const handleConnect = () => {
+    if (connectors.length === 1) {
+      connectWallet(connectors[0].id);
+    } else {
+      setShowConnectors(!showConnectors);
+    }
+  };
+
   return (
     <div className="wallet-disconnected">
-      <button 
+      <button
         className="btn wallet-btn"
-        onClick={() => setShowConnectors(!showConnectors)}
+        onClick={handleConnect}
         disabled={isConnecting}
       >
         <span className="wallet-icon">👛</span>
         {isConnecting ? 'Connecting...' : 'Connect Wallet'}
       </button>
-      
-      {showConnectors && !isConnected && (
+
+      {showConnectors && !isConnected && connectors.length > 1 && (
         <div className="wallet-dropdown">
           <div className="wallet-connectors">
             <div className="connector-title">Choose Wallet:</div>
@@ -76,8 +85,8 @@ export function WalletButton() {
                 disabled={isConnecting}
               >
                 {typeof connector.icon === 'string' && (
-                  <img 
-                    src={connector.icon} 
+                  <img
+                    src={connector.icon}
                     alt={connector.name}
                     className="connector-icon"
                   />

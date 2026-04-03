@@ -1,18 +1,35 @@
 import React from 'react';
-import { StarknetConfig, publicProvider, argent, braavos } from '@starknet-react/core';
-import { sepolia, mainnet } from '@starknet-react/chains';
+import { sepolia } from '@starknet-react/chains';
+import { StarknetConfig, jsonRpcProvider } from '@starknet-react/core';
 import { ControllerConnector } from '@cartridge/connector';
+import type { SessionPolicies } from '@cartridge/controller';
 
-// Define available connectors
-function getConnectors() {
-  const controllerConnector = new ControllerConnector({});
+// Session policies for game contracts — pre-approve common game actions
+// so players don't have to sign every move
+const policies: SessionPolicies = {
+  contracts: {
+    // These will match the deployed game contracts.
+    // Define contract methods here as they become known.
+  },
+};
 
-  return [
-    controllerConnector,
-    argent(),
-    braavos(),
-  ];
-}
+// IMPORTANT: Create connector OUTSIDE of React components.
+// Creating inside a component causes recreation on every render.
+const connector = new ControllerConnector({
+  policies,
+  // Cartridge RPC for Sepolia
+  chains: [
+    { rpcUrl: 'https://api.cartridge.gg/x/starknet/sepolia' },
+  ],
+  defaultChainId: '0x534e5f5345504f4c4941', // SN_SEPOLIA hex
+});
+
+// Use Cartridge's hosted RPC
+const provider = jsonRpcProvider({
+  rpc: () => ({
+    nodeUrl: 'https://api.cartridge.gg/x/starknet/sepolia',
+  }),
+});
 
 interface WalletProviderProps {
   children: React.ReactNode;
@@ -21,10 +38,10 @@ interface WalletProviderProps {
 export function WalletProvider({ children }: WalletProviderProps) {
   return (
     <StarknetConfig
-      chains={[sepolia, mainnet]}
-      provider={publicProvider()}
-      connectors={getConnectors()}
       autoConnect
+      chains={[sepolia]}
+      connectors={[connector]}
+      provider={provider}
     >
       {children}
     </StarknetConfig>
