@@ -224,8 +224,11 @@ function App() {
     if (!account || !client || !currentGameId) return null;
     try {
       await client.board_actions.rollDice(account, currentGameId);
-      // TODO: Parse real dice values from contract result once event decoding is wired up
-      return { dice1: 3, dice2: 4, success: true };
+      // Contract records the roll on-chain. We generate local dice for UI
+      // until Torii event subscriptions are wired up to read DiceRolled events.
+      const dice1 = Math.floor(Math.random() * 6) + 1;
+      const dice2 = Math.floor(Math.random() * 6) + 1;
+      return { dice1, dice2, success: true };
     } catch (error) {
       console.error('Roll dice failed:', error);
       toastError('Dice roll failed');
@@ -292,7 +295,7 @@ function App() {
   };
   
   // --- Toast & loading state ---
-  const { toasts, success: toastSuccess, error: toastError, loading: toastLoading, removeToast } = useToast();
+  const { toasts, success: toastSuccess, error: toastError, info: toastInfo, loading: toastLoading, removeToast } = useToast();
   const [actionLoading, setActionLoading] = useState<string | null>(null) // 'creating' | 'joining' | 'rolling' | 'buying' | null
 
   // --- Core state ---
@@ -305,7 +308,10 @@ function App() {
   const [mortgages, setMortgages] = useState<Record<number, boolean>>({})
   const [inJail, setInJail] = useState<Record<string, number>>({})
   const [lastRoll, setLastRoll] = useState(0)
+  const [tradeOpen, setTradeOpen] = useState(false)
+  const [tradeOffer, setTradeOffer] = useState<{ toPlayer: string; propertyId: number; price: number } | null>(null)
   // lobbies come from blockchain entities merged with local optimistic state
+  const [gameOver, setGameOver] = useState<{ winner: typeof game.players[0] } | null>(null);
   const [openCard, setOpenCard] = useState<Card | undefined>()
   const [chanceDeck, setChanceDeck] = useState<Card[]>(() => shuffle([
     { id:'c1', deck:'chance', title:'Advance to Start', text:'Collect $200', action:{ kind:'move', to:0, passGo:true } },
@@ -376,6 +382,56 @@ function App() {
   }
   function useJailPass(){ const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((jailPasses[cur.id]||0)<=0) return; setJailPasses(p=>({...p,[cur.id]:p[cur.id]-1})); setInJail(j=>({...j,[cur.id]:0})); log('good','Jail Pass used','Freed from Jail') }
 
+  async function handleGameOver(winner: typeof game.players[0]) {
+    setGameOver({ winner });
+    log('good', 'GAME OVER!', `${winner.name} wins the game!`);
+
+    // Call contract to end the game
+    if (account && client && currentGameId) {
+      try {
+        const { CairoOption, CairoOptionVariant } = await import('starknet');
+        await client.game_manager.endGame(
+          account,
+          currentGameId,
+          new CairoOption(CairoOptionVariant.Some, winner.id)
+        );
+        toastSuccess(`${winner.name} wins! Prizes distributed.`);
+      } catch (error) {
+        console.error('End game contract call failed:', error);
+      }
+    }
+  }
+
+  function checkBankruptcy(playerId: string) {
+    const balance = game.balances[playerId] || 0;
+    if (balance < 0) {
+      log('warn', 'BANKRUPT!', `${game.players.find(p => p.id === playerId)?.name || playerId} is bankrupt and eliminated!`);
+      // Mark player as bankrupt by removing from active players
+      updateGame(g => ({
+        ...g,
+        players: g.players.filter(p => p.id !== playerId),
+        // Transfer their properties back to unowned
+        ownership: Object.fromEntries(
+          Object.entries(g.ownership).map(([tid, owner]) =>
+            [tid, owner === playerId ? undefined : owner]
+          )
+        ),
+        // Remove their houses
+        houses: Object.fromEntries(
+          Object.entries(g.houses).map(([tid, count]) =>
+            [tid, g.ownership[Number(tid)] === playerId ? 0 : count]
+          )
+        ),
+      }));
+
+      // Check if game is over (1 player left)
+      const remainingPlayers = game.players.filter(p => p.id !== playerId);
+      if (remainingPlayers.length === 1) {
+        handleGameOver(remainingPlayers[0]);
+      }
+    }
+  }
+
   function moveAndResolve(steps:number){
     const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)>0){ log('warn',`${cur.name} is in Jail`,'Pay bail or use pass'); return }
     const from=game.positions[cur.id] || 0; const to=(from+steps)%40; const passGo=from+steps>=40
@@ -385,7 +441,7 @@ function App() {
     const tile=monoTiles[to]; if(!tile) return
     if(tile.kind==='chance'){ drawCard('chance'); return }
     if(tile.kind==='chest'){ drawCard('chest'); return }
-    if(tile.kind==='tax'){ updateGame(g=>({...g, balances:{...g.balances,[cur.id]:g.balances[cur.id]-100}})); log('warn',`${cur.name} paid Tax`,'-$100'); return }
+    if(tile.kind==='tax'){ updateGame(g=>({...g, balances:{...g.balances,[cur.id]:g.balances[cur.id]-100}})); log('warn',`${cur.name} paid Tax`,'-$100'); setTimeout(() => checkBankruptcy(cur.id), 100); return }
     if(tile.kind==='gotojail'){ updateGame(g=>({...g, positions:{...g.positions,[cur.id]:10}})); setInJail(j=>({...j,[cur.id]:3})); setSelected(10); log('warn',`${cur.name} went to Jail`,'3 turns or $50'); return }
     if(['property','rail','utility'].includes(tile.kind)){
       const owner=game.ownership[to]; if(owner && owner!==cur.id && !mortgages[to]){
@@ -396,6 +452,8 @@ function App() {
         log('info',`${cur.name} paid rent`, `-$${rent} to ${owner}`)
       }
     }
+    // Check for bankruptcy after all deductions
+    setTimeout(() => checkBankruptcy(cur.id), 100);
   }
   async function rollDice(){ 
     if(rolling||openCard) return; 
@@ -706,8 +764,8 @@ function App() {
                 canUnmortgage={owner===curPlayer.id && isMortgaged}
                 inJailTurns={inJail[curPlayer.id]||0}
                 onPayBail={payBail}
-                onTrade={() => log('info','Trade','Open trade dialog')}
-                onAuction={() => log('info','Auction','Start auction flow')}
+                onTrade={() => setTradeOpen(true)}
+                onAuction={() => toastInfo('Auctions coming soon!')}
                 balances={game.balances}
               />
               <div className="panelTitle" style={{ marginTop: 16 }}>
@@ -755,6 +813,27 @@ function App() {
         <span className="orb orbC"/>
       </div>
 
+      {/* Game over victory overlay */}
+      {gameOver && (
+        <div className="cardModal" role="dialog" aria-modal="true">
+          <div className="cardPanel" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>&#x1F40B;</div>
+            <div className="cardTitle" style={{ fontSize: 24 }}>Victory!</div>
+            <div className="cardBody">
+              <span style={{ color: gameOver.winner.color, fontWeight: 700 }}>{gameOver.winner.name}</span> has conquered the depths!
+            </div>
+            <div style={{ color: 'var(--gold)', fontSize: 18, fontWeight: 700, margin: '12px 0' }}>
+              Final Balance: ${(game.balances[gameOver.winner.id] || 0).toLocaleString()}
+            </div>
+            <div className="cardActions" style={{ justifyContent: 'center' }}>
+              <button className="btn glow" onClick={() => { setGameOver(null); setSection('onboard'); }}>
+                Back to Lobby
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Insert card modal at root level so it overlays */}
       {openCard && (
         <div className="cardModal" role="dialog" aria-modal="true">
@@ -775,6 +854,111 @@ function App() {
       {/* Add floating jail pass use button if applicable */}
       {hasJailPass && curPlayer.id && (inJail[curPlayer.id]||0)>0 && (
         <button className="floatingBtn" onClick={useJailPass}>Use Jail Pass ({jailPasses[curPlayer.id] || 0})</button>
+      )}
+
+      {/* Trade dialog */}
+      {tradeOpen && (
+        <div className="cardModal" role="dialog" aria-modal="true">
+          <div className="cardPanel">
+            <div className="cardHeader">
+              <span className="deckTag chance">Trade</span>
+              <button className="closeBtn" onClick={() => { setTradeOpen(false); setTradeOffer(null); }} aria-label="Close">&times;</button>
+            </div>
+            <div className="cardTitle">Propose a Trade</div>
+            <div className="cardBody">
+              {/* Select player to trade with */}
+              <div className="field" style={{ marginBottom: 12 }}>
+                <label>Trade with:</label>
+                <select
+                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border-default)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', width: '100%' }}
+                  onChange={(e) => setTradeOffer(prev => ({ toPlayer: e.target.value, propertyId: prev?.propertyId || 0, price: prev?.price || 0 }))}
+                  value={tradeOffer?.toPlayer || ''}
+                >
+                  <option value="">Select player...</option>
+                  {game.players
+                    .filter(p => p.id !== game.players[game.currentIdx]?.id)
+                    .map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Select property to offer */}
+              <div className="field" style={{ marginBottom: 12 }}>
+                <label>Your property to trade:</label>
+                <select
+                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border-default)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', width: '100%' }}
+                  onChange={(e) => setTradeOffer(prev => ({ toPlayer: prev?.toPlayer || '', propertyId: Number(e.target.value), price: prev?.price || 0 }))}
+                  value={tradeOffer?.propertyId || 0}
+                >
+                  <option value={0}>Select property...</option>
+                  {Object.entries(game.ownership)
+                    .filter(([, owner]) => owner === game.players[game.currentIdx]?.id)
+                    .map(([tileId]) => {
+                      const tile = monoTiles[Number(tileId)];
+                      return tile ? (
+                        <option key={tileId} value={tileId}>{tile.label}</option>
+                      ) : null;
+                    })}
+                </select>
+              </div>
+
+              {/* Price */}
+              <div className="field" style={{ marginBottom: 12 }}>
+                <label>Asking price ($):</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={tradeOffer?.price || ''}
+                  onChange={(e) => setTradeOffer(prev => ({ toPlayer: prev?.toPlayer || '', propertyId: prev?.propertyId || 0, price: Number(e.target.value) }))}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="cardActions">
+              <button className="btn ghost" onClick={() => { setTradeOpen(false); setTradeOffer(null); }}>Cancel</button>
+              <button
+                className="btn glow"
+                disabled={!tradeOffer?.toPlayer || !tradeOffer?.propertyId}
+                onClick={async () => {
+                  if (!tradeOffer?.toPlayer || !tradeOffer?.propertyId) return;
+                  const cur = game.players[game.currentIdx];
+                  if (!cur) return;
+
+                  // Try contract call
+                  if (account && client && currentGameId) {
+                    try {
+                      await client.property_management.transferProperty(
+                        account, currentGameId, tradeOffer.propertyId, tradeOffer.toPlayer, tradeOffer.price
+                      );
+                      toastSuccess('Trade completed!');
+                    } catch (error) {
+                      console.error('Trade contract call failed:', error);
+                    }
+                  }
+
+                  // Local state update
+                  updateGame(g => ({
+                    ...g,
+                    ownership: { ...g.ownership, [tradeOffer.propertyId]: tradeOffer.toPlayer },
+                    balances: {
+                      ...g.balances,
+                      [cur.id]: (g.balances[cur.id] || 0) + tradeOffer.price,
+                      [tradeOffer.toPlayer]: (g.balances[tradeOffer.toPlayer] || 0) - tradeOffer.price,
+                    }
+                  }));
+
+                  const tradeTile = monoTiles[tradeOffer.propertyId];
+                  log('good', 'Trade Complete', `${tradeTile?.label || 'Property'} sold for $${tradeOffer.price}`);
+                  setTradeOpen(false);
+                  setTradeOffer(null);
+                }}
+              >
+                Execute Trade
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast notifications */}
