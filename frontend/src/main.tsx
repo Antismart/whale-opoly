@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { WalletProvider } from './WalletProvider.tsx'
 
 // Dojo imports
@@ -34,7 +35,9 @@ async function main() {
         <StrictMode>
             <WalletProvider>
                 <DojoSdkProvider sdk={sdk} dojoConfig={dojoConfig} clientFn={setupWorld}>
-                    <App />
+                    <ErrorBoundary>
+                        <App />
+                    </ErrorBoundary>
                 </DojoSdkProvider>
             </WalletProvider>
         </StrictMode>
