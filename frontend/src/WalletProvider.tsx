@@ -8,9 +8,36 @@ import type { SessionPolicies } from '@cartridge/controller';
 // so players don't have to sign every move
 const policies: SessionPolicies = {
   contracts: {
-    // These will match the deployed game contracts.
-    // Define contract methods here as they become known.
+    // Contract addresses will be populated from manifest after deployment
+    // For now, these are the methods that will be pre-approved
   },
+  // Message signing policy for Dojo SNIP-12
+  messages: [
+    {
+      types: {
+        StarknetDomain: [
+          { name: 'name', type: 'shortstring' },
+          { name: 'version', type: 'shortstring' },
+          { name: 'chainId', type: 'shortstring' },
+          { name: 'revision', type: 'shortstring' },
+        ],
+        'whale_opoly-Message': [
+          { name: 'identity', type: 'ContractAddress' },
+          { name: 'channel', type: 'shortstring' },
+          { name: 'content', type: 'ByteArray' },
+          { name: 'timestamp', type: 'felt' },
+          { name: 'salt', type: 'felt' },
+        ],
+      },
+      primaryType: 'whale_opoly-Message',
+      domain: {
+        name: 'WhaleOpoly',
+        version: '1',
+        chainId: 'SN_SEPOLIA',
+        revision: '1',
+      },
+    },
+  ],
 };
 
 // IMPORTANT: Create connector OUTSIDE of React components.
