@@ -130,6 +130,16 @@ pub struct TreasuryBalance {
     pub daily_spent: u256,
 }
 
+// ===== GAME COUNTER MODEL =====
+
+#[derive(Copy, Drop, Serde, Debug)]
+#[dojo::model]
+pub struct GameCounter {
+    #[key]
+    pub id: felt252, // always 'game_counter'
+    pub next_id: u64,
+}
+
 // ===== RANDOMNESS AND SECURITY MODELS =====
 
 #[derive(Copy, Drop, Serde, Debug)]
