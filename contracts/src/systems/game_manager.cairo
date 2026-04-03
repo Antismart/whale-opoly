@@ -5,7 +5,8 @@ use dojo::event::{EventStorage};
 
 use whale_opoly::models::{
     GameState, PlayerGameState, GlobalPlayerState, GameStatus, GameTier,
-    VerificationTier, TreasuryBalance, BalanceType, GameCurrency, PlayerPosition
+    VerificationTier, TreasuryBalance, BalanceType, GameCurrency, PlayerPosition,
+    GameCounter
 };
 
 // ===== INTERFACES =====
@@ -16,6 +17,7 @@ pub trait IGameManager<T> {
     fn join_game(ref self: T, game_id: u64) -> bool;
     fn start_game(ref self: T, game_id: u64) -> bool;
     fn end_game(ref self: T, game_id: u64, winner: Option<ContractAddress>) -> bool;
+    fn cancel_game(ref self: T, game_id: u64) -> bool;
     fn get_game_state(self: @T, game_id: u64) -> GameState;
     fn get_player_games(self: @T, player: ContractAddress) -> Span<u64>;
     fn is_game_full(self: @T, game_id: u64) -> bool;
@@ -93,6 +95,7 @@ pub mod game_manager {
         IGameManager, GameCreated, PlayerJoined, GameStarted, GameEnded,
         GameState, PlayerGameState, GlobalPlayerState, GameStatus, GameTier,
         VerificationTier, TreasuryBalance, BalanceType, GameCurrency, PlayerPosition,
+        GameCounter,
         MAX_PLAYERS_PER_GAME, MIN_PLAYERS_PER_GAME, GAME_START_DELAY, MAX_CONCURRENT_GAMES,
         BRONZE_ENTRY_FEE, SILVER_ENTRY_FEE, GOLD_ENTRY_FEE, PLATINUM_ENTRY_FEE,
         BRONZE_STARTING_BALANCE, SILVER_STARTING_BALANCE, GOLD_STARTING_BALANCE, PLATINUM_STARTING_BALANCE
@@ -120,8 +123,11 @@ pub mod game_manager {
             // Check player doesn't have too many active games
             assert!(player_state.active_games.len() < MAX_CONCURRENT_GAMES.into(), "Too many active games");
 
-            // Generate unique game ID
-            let game_id = (get_block_timestamp()).into();
+            // Generate unique game ID using counter
+            let mut counter: GameCounter = world.read_model('game_counter');
+            let game_id = counter.next_id;
+            counter.next_id = game_id + 1;
+            world.write_model(@counter);
 
             // Calculate entry fee and starting balance
             let (entry_fee, starting_balance) = self._get_tier_parameters(tier);
@@ -336,16 +342,45 @@ pub mod game_manager {
 
             // Get game state
             let mut game_state: GameState = world.read_model(game_id);
-            
+
             // Validate game can be ended
             assert!(game_state.status == GameStatus::Active || game_state.status == GameStatus::Paused, "Game not active");
 
+            // Only a player in the game can end it
+            let caller = get_caller_address();
+            assert!(self._is_player_in_game(game_state.players, caller), "Not a player in this game");
+
+            // Game can only end if there's at most one non-bankrupt player
+            // Count active (non-bankrupt) players
+            let mut active_count: u32 = 0;
+            let mut last_active: ContractAddress = caller;
+            let mut i: u32 = 0;
+            while i < game_state.players.len() {
+                let p = *game_state.players.at(i);
+                let pgs: PlayerGameState = world.read_model((p, game_id));
+                if !pgs.is_bankrupt {
+                    active_count += 1;
+                    last_active = p;
+                }
+                i += 1;
+            };
+
+            // Only allow ending if 0 or 1 active players remain
+            assert!(active_count <= 1, "Game still has multiple active players");
+
+            // If there's one active player, they are the winner (override whatever was passed)
+            let actual_winner = if active_count == 1 {
+                Option::Some(last_active)
+            } else {
+                winner
+            };
+
             // Update game state
             game_state.status = GameStatus::Finished;
-            game_state.winner = winner;
+            game_state.winner = actual_winner;
 
             // Calculate and distribute prizes
-            self._distribute_prizes(game_id, game_state.players, winner, game_state.total_pool);
+            self._distribute_prizes(game_id, game_state.players, actual_winner, game_state.total_pool);
 
             // Remove game from all players' active games
             self._cleanup_player_states(game_state.players, game_id);
@@ -356,10 +391,41 @@ pub mod game_manager {
             // Emit event
             world.emit_event(@GameEnded {
                 game_id,
-                winner,
+                winner: actual_winner,
                 total_pool: game_state.total_pool,
                 ended_at: current_time,
             });
+
+            true
+        }
+
+        fn cancel_game(ref self: ContractState, game_id: u64) -> bool {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+
+            let mut game_state: GameState = world.read_model(game_id);
+
+            // Can only cancel games in Lobby status
+            assert!(game_state.status == GameStatus::Lobby, "Game already started");
+
+            // Only the creator (first player) can cancel
+            assert!(game_state.players.len() > 0, "No players");
+            assert!(*game_state.players.at(0) == caller, "Only creator can cancel");
+
+            // Mark as finished
+            game_state.status = GameStatus::Finished;
+            world.write_model(@game_state);
+
+            // Clean up player states
+            self._cleanup_player_states(game_state.players, game_id);
+
+            // Return funds from treasury (deduct from hot wallet)
+            let mut hot: TreasuryBalance = world.read_model(BalanceType::HotWallet);
+            if hot.amount >= game_state.total_pool {
+                hot.amount -= game_state.total_pool;
+                hot.last_updated = get_block_timestamp();
+                world.write_model(@hot);
+            }
 
             true
         }
