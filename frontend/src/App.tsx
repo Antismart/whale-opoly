@@ -57,36 +57,60 @@ function App() {
       .includeHashedKeys()
   );
 
-  // Get real data from Zustand store
+  // Get data from Dojo Zustand store (returns empty while torii-wasm is stubbed)
   const gameStates = useModels("whale_opoly-GameState");
   const playerPositions = useModels("whale_opoly-PlayerPosition");
   const gameCurrencies = useModels("whale_opoly-GameCurrency");
   const properties = useModels("whale_opoly-Property");
-  
-  // Extract game data from Dojo entities
+
+  // Extract game data from Dojo entities (empty until torii-wasm works)
   const gameEntities = Object.values(gameStates);
-  const currentGame = gameEntities.find((game: any) => game.game_id === currentGameId) || gameEntities[0];
-  
-  // Real game data from Dojo entities
-  const game = {
-    players: currentGame ? [
-      { id: currentGame.player_1, name: "Player 1", color: "#ff6b6b" },
-      { id: currentGame.player_2, name: "Player 2", color: "#4ecdc4" },
-      { id: currentGame.player_3, name: "Player 3", color: "#45b7d1" },
-      { id: currentGame.player_4, name: "Player 4", color: "#f9ca24" }
-    ].filter(p => p.id) : [],
-    currentIdx: currentGame?.current_player_index || 0,
-    positions: Object.fromEntries(
+
+  // Local game state — the single source of truth for the UI.
+  // When Dojo entity subscriptions start returning real data, the
+  // useEffect below will sync chain state into this local state.
+  const [game, setGame] = useState({
+    players: [
+      { id: 'P1', name: 'Player 1', color: '#ff6b6b' },
+      { id: 'P2', name: 'Player 2', color: '#4ecdc4' },
+      { id: 'P3', name: 'Player 3', color: '#45b7d1' },
+      { id: 'P4', name: 'Player 4', color: '#f9ca24' },
+    ] as { id: string; name: string; color: string }[],
+    currentIdx: 0,
+    positions: { P1: 0, P2: 0, P3: 0, P4: 0 } as Record<string, number>,
+    ownership: {} as Record<number, string | undefined>,
+    balances: { P1: 1500, P2: 1500, P3: 1500, P4: 1500 } as Record<string, number>,
+    houses: {} as Record<number, number>,
+  });
+
+  // Sync from blockchain when Dojo entities become available
+  useEffect(() => {
+    const gameEntries = Object.values(gameStates);
+    if (gameEntries.length === 0) return; // No blockchain data yet
+
+    const currentGame = gameEntries.find((g: any) => g.game_id === currentGameId) || gameEntries[0];
+    if (!currentGame) return;
+
+    // Build positions/balances from chain data
+    const chainPositions = Object.fromEntries(
       Object.values(playerPositions).map((pos: any) => [pos.player, pos.position])
-    ),
-    ownership: Object.fromEntries(
+    );
+    const chainBalances = Object.fromEntries(
+      Object.values(gameCurrencies).map((c: any) => [c.player, c.balance])
+    );
+    const chainOwnership = Object.fromEntries(
       Object.values(properties).map((prop: any) => [prop.property_id, prop.owner])
-    ),
-    balances: Object.fromEntries(
-      Object.values(gameCurrencies).map((currency: any) => [currency.player, currency.balance])
-    ),
-    houses: {} as Record<number, number>
-  };
+    );
+
+    if (Object.keys(chainPositions).length > 0 || Object.keys(chainBalances).length > 0) {
+      setGame(prev => ({
+        ...prev,
+        positions: { ...prev.positions, ...chainPositions },
+        balances: { ...prev.balances, ...chainBalances },
+        ownership: { ...prev.ownership, ...chainOwnership },
+      }));
+    }
+  }, [gameStates, playerPositions, gameCurrencies, properties, currentGameId]);
   
   // Combine real lobbies from blockchain with local optimistic lobbies
   const blockchainLobbies: Lobby[] = gameEntities
@@ -312,10 +336,9 @@ function App() {
     return () => clearInterval(interval);
   }, [blockchainLobbies]);
 
-  // Update function for optimistic updates (optional)
-  const updateGame = (_updater: (g: typeof game) => typeof game) => {
-    // Since we're using real Dojo data, we don't need local updates
-    // The Zustand store will update automatically when blockchain state changes
+  // Update local game state — all game logic flows through this function.
+  const updateGame = (updater: (prev: typeof game) => typeof game) => {
+    setGame(updater);
   };
   
   // --- Toast & loading state ---
@@ -422,6 +445,7 @@ function App() {
         toastSuccess(`${winner.name} wins! Prizes distributed.`);
       } catch (error) {
         console.error('End game contract call failed:', error);
+        toastError('Action may not sync to blockchain');
       }
     }
   }
@@ -490,9 +514,10 @@ function App() {
         // After rolling dice, also call move_player on contract
         if (account && client && currentGameId) {
           try {
-            await client.board_actions.movePlayer(account, currentGameId, dojoResult.dice1 + dojoResult.dice2);
+            await client.board_actions.movePlayer(account, currentGameId);
           } catch (error) {
             console.error('Move player contract call failed:', error);
+            toastError('Action may not sync to blockchain');
           }
         }
         setTimeout(()=>{
@@ -533,21 +558,32 @@ function App() {
       // Use real Dojo contract
       const dojoResult = await buyPropertyAction(id);
       if (dojoResult?.success) {
+        // Update local state to reflect the purchase
+        updateGame(g => ({
+          ...g,
+          ownership: { ...g.ownership, [id]: cur.id },
+          balances: { ...g.balances, [cur.id]: (g.balances[cur.id] || 0) - cost },
+        }));
         log('good','Bought via Dojo',`${t.label} $${cost}`);
         return;
       }
     } catch (error) {
       console.error('Dojo buy property failed:', error);
     }
-    
-    // If contract call fails, log the error  
-    log('warn','Purchase failed','Check connection');
+
+    // Fallback: update locally even if contract call failed
+    updateGame(g => ({
+      ...g,
+      ownership: { ...g.ownership, [id]: cur.id },
+      balances: { ...g.balances, [cur.id]: (g.balances[cur.id] || 0) - cost },
+    }));
+    log('good','Bought (local)',`${t.label} $${cost}`);
   }
-  async function buildHouse(id:number){ const t=monoTiles[id]; if(!t||t.kind!=='property') return; const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); if(!ownsGroup(cur.id,id)) return log('warn','Need set',''); const current=game.houses[id]||0; if(current>=5) return log('warn','Max built',''); const cost=current===4?houseCost[id]*2:houseCost[id]; if((game.balances[cur.id]||0)<cost) return log('warn','Need funds',`$${cost}`); if (account && client && currentGameId) { try { await client.board_actions.developProperty(account, currentGameId, id); } catch (error) { console.error('Develop property contract call failed:', error); } } updateGame(g=>({...g, houses:{...g.houses,[id]:current+1}, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-cost}})); log('good', current===4?'Hotel built':'House built', `-$${cost}`) }
-  async function mortgageProperty(id:number){ if(mortgages[id]) return log('warn','Already mortgaged',''); const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); const val=Math.floor((price[id]||0)/2); if (account && client && currentGameId) { try { await client.board_actions.mortgageProperty(account, currentGameId, id); } catch (error) { console.error('Mortgage contract call failed:', error); } } setMortgages(m=>({...m,[id]:true})); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)+val}})); log('info','Mortgaged',`+$${val}`) }
-  async function unmortgageProperty(id:number){ if(!mortgages[id]) return; const cur=game.players[game.currentIdx]; if(!cur) return; const val=Math.floor((price[id]||0)/2)*1.1; if((game.balances[cur.id]||0)<val) return log('warn','Need funds',`$${val}`); if (account && client && currentGameId) { try { await client.board_actions.unmortgageProperty(account, currentGameId, id); } catch (error) { console.error('Unmortgage contract call failed:', error); } } setMortgages(m=>{const n={...m}; delete n[id]; return n}); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-val}})); log('info','Unmortgaged',`-$${val}`) }
-  async function payBail(){ const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((game.balances[cur.id]||0)<50) return log('warn','Need $50',''); if (account && client && currentGameId) { try { await client.board_actions.payBail(account, currentGameId); } catch (error) { console.error('Pay bail contract call failed:', error); } } updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-50}})); setInJail(j=>({...j,[cur.id]:0})); log('good','Bail paid','Freed') }
-  async function endTurn(){ if(openCard) return log('warn','Resolve card','Apply first'); if (account && client && currentGameId) { try { await client.board_actions.endTurn(account, currentGameId); } catch (error) { console.error('End turn contract call failed:', error); } } updateGame(g=>({...g, currentIdx:(g.currentIdx+1)%g.players.length })); setInJail(j=>{ const n={...j}; Object.keys(n).forEach(k=>{ if(n[k]>0) n[k]-=1 }); return n }) }
+  async function buildHouse(id:number){ const t=monoTiles[id]; if(!t||t.kind!=='property') return; const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); if(!ownsGroup(cur.id,id)) return log('warn','Need set',''); const current=game.houses[id]||0; if(current>=5) return log('warn','Max built',''); const cost=current===4?houseCost[id]*2:houseCost[id]; if((game.balances[cur.id]||0)<cost) return log('warn','Need funds',`$${cost}`); if (account && client && currentGameId) { try { await client.board_actions.developProperty(account, currentGameId, id); } catch (error) { console.error('Develop property contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, houses:{...g.houses,[id]:current+1}, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-cost}})); log('good', current===4?'Hotel built':'House built', `-$${cost}`) }
+  async function mortgageProperty(id:number){ if(mortgages[id]) return log('warn','Already mortgaged',''); const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); const val=Math.floor((price[id]||0)/2); if (account && client && currentGameId) { try { await client.board_actions.mortgageProperty(account, currentGameId, id); } catch (error) { console.error('Mortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>({...m,[id]:true})); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)+val}})); log('info','Mortgaged',`+$${val}`) }
+  async function unmortgageProperty(id:number){ if(!mortgages[id]) return; const cur=game.players[game.currentIdx]; if(!cur) return; const val=Math.floor((price[id]||0)/2)*1.1; if((game.balances[cur.id]||0)<val) return log('warn','Need funds',`$${val}`); if (account && client && currentGameId) { try { await client.board_actions.unmortgageProperty(account, currentGameId, id); } catch (error) { console.error('Unmortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>{const n={...m}; delete n[id]; return n}); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-val}})); log('info','Unmortgaged',`-$${val}`) }
+  async function payBail(){ const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((game.balances[cur.id]||0)<50) return log('warn','Need $50',''); if (account && client && currentGameId) { try { await client.board_actions.payBail(account, currentGameId); } catch (error) { console.error('Pay bail contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-50}})); setInJail(j=>({...j,[cur.id]:0})); log('good','Bail paid','Freed') }
+  async function endTurn(){ if(openCard) return log('warn','Resolve card','Apply first'); if (account && client && currentGameId) { try { await client.board_actions.endTurn(account, currentGameId); } catch (error) { console.error('End turn contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, currentIdx:(g.currentIdx+1)%g.players.length })); setInJail(j=>{ const n={...j}; Object.keys(n).forEach(k=>{ if(n[k]>0) n[k]-=1 }); return n }) }
 
   // Derived
   const curPlayer = game.players[game.currentIdx] || { id: '', name: 'Unknown', color: '#666' }
@@ -958,6 +994,7 @@ function App() {
                       toastSuccess('Trade completed!');
                     } catch (error) {
                       console.error('Trade contract call failed:', error);
+                      toastError('Action may not sync to blockchain');
                     }
                   }
 
