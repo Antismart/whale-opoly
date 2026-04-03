@@ -140,19 +140,40 @@ export function setupWorld(provider: DojoProvider) {
 		}
 	};
 
-	const build_board_actions_movePlayer_calldata = (gameId: BigNumberish, steps: BigNumberish): DojoCall => {
+	const build_board_actions_movePlayer_calldata = (gameId: BigNumberish): DojoCall => {
 		return {
 			contractName: "board_actions",
 			entrypoint: "move_player",
-			calldata: [gameId, steps],
+			calldata: [gameId],
 		};
 	};
 
-	const board_actions_movePlayer = async (snAccount: Account | AccountInterface, gameId: BigNumberish, steps: BigNumberish) => {
+	const board_actions_movePlayer = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
-				build_board_actions_movePlayer_calldata(gameId, steps),
+				build_board_actions_movePlayer_calldata(gameId),
+				"whale_opoly",
+			);
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
+	const build_board_actions_forceSkipTurn_calldata = (gameId: BigNumberish): DojoCall => {
+		return {
+			contractName: "board_actions",
+			entrypoint: "force_skip_turn",
+			calldata: [gameId],
+		};
+	};
+
+	const board_actions_forceSkipTurn = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+		try {
+			return await provider.execute(
+				snAccount,
+				build_board_actions_forceSkipTurn_calldata(gameId),
 				"whale_opoly",
 			);
 		} catch (error) {
@@ -554,6 +575,27 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_game_manager_joinGame_calldata(gameId),
+				"whale_opoly",
+			);
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
+	const build_game_manager_cancelGame_calldata = (gameId: BigNumberish): DojoCall => {
+		return {
+			contractName: "game_manager",
+			entrypoint: "cancel_game",
+			calldata: [gameId],
+		};
+	};
+
+	const game_manager_cancelGame = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+		try {
+			return await provider.execute(
+				snAccount,
+				build_game_manager_cancelGame_calldata(gameId),
 				"whale_opoly",
 			);
 		} catch (error) {
@@ -1408,6 +1450,8 @@ export function setupWorld(provider: DojoProvider) {
 			buildMortgagePropertyCalldata: build_board_actions_mortgageProperty_calldata,
 			movePlayer: board_actions_movePlayer,
 			buildMovePlayerCalldata: build_board_actions_movePlayer_calldata,
+			forceSkipTurn: board_actions_forceSkipTurn,
+			buildForceSkipTurnCalldata: build_board_actions_forceSkipTurn_calldata,
 			payRent: board_actions_payRent,
 			buildPayRentCalldata: build_board_actions_payRent_calldata,
 			rollDice: board_actions_rollDice,
@@ -1454,6 +1498,8 @@ export function setupWorld(provider: DojoProvider) {
 			buildIsGameFullCalldata: build_game_manager_isGameFull_calldata,
 			joinGame: game_manager_joinGame,
 			buildJoinGameCalldata: build_game_manager_joinGame_calldata,
+			cancelGame: game_manager_cancelGame,
+			buildCancelGameCalldata: build_game_manager_cancelGame_calldata,
 			startGame: game_manager_startGame,
 			buildStartGameCalldata: build_game_manager_startGame_calldata,
 		},
