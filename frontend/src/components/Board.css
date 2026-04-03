@@ -1,6 +1,6 @@
 /* =======================================================================
    Board.css — Whale-Opoly Game Board
-   Self-contained styles. No dependency on App.css board rules.
+   Premium board-game aesthetic: bold color, tactile depth, ocean theme.
    ======================================================================= */
 
 /* --- Wrapper --------------------------------------------------------- */
@@ -17,24 +17,24 @@
   display: grid;
   grid-template-rows: repeat(11, 1fr);
   grid-template-columns: repeat(11, 1fr);
-  gap: 3px;
+  gap: 4px;
   width: var(--board-size);
   height: var(--board-size);
   padding: 8px 8px 68px 8px;
-  border-radius: 16px;
+  border-radius: 20px;
 
-  /* Deep ocean floor */
+  /* Rich dark teal ocean — NOT black */
   background:
-    radial-gradient(ellipse 70% 50% at 50% 100%, rgba(14, 165, 233, 0.04), transparent),
-    radial-gradient(ellipse 50% 40% at 0% 50%, rgba(20, 184, 166, 0.03), transparent),
-    linear-gradient(145deg, #040e1e, #061428, #041020);
+    radial-gradient(ellipse 60% 50% at 50% 100%, rgba(14, 165, 233, 0.07), transparent),
+    radial-gradient(ellipse 50% 40% at 0% 50%, rgba(20, 184, 166, 0.05), transparent),
+    linear-gradient(135deg, #0c2d48, #0a3d5c, #0c2d48);
 
-  /* Physical board edge */
-  border: 3px solid rgba(14, 165, 233, 0.2);
+  /* Visible teal border — game board edge */
+  border: 4px solid #1a6b8a;
   box-shadow:
-    0 0 60px rgba(14, 165, 233, 0.08),
-    inset 0 0 80px rgba(14, 165, 233, 0.04),
-    0 8px 32px rgba(0, 0, 0, 0.5);
+    inset 0 0 40px rgba(0, 0, 0, 0.3),
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(14, 165, 233, 0.06);
 }
 
 /* --- Tile Base ------------------------------------------------------- */
@@ -51,24 +51,24 @@
   cursor: pointer;
   z-index: 1;
 
-  /* Dark glass */
-  background: rgba(10, 22, 40, 0.6);
-  border: 1px solid rgba(14, 165, 233, 0.1);
-  border-radius: 6px;
+  /* Visible tile surface — lifted from board */
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
 
-  color: var(--muted);
+  color: #d4e7f5;
   font-size: clamp(10px, 0.85vw, 12px);
   text-align: center;
 
   transition: all 180ms ease;
 }
 
-/* Hover */
+/* Hover — bright, tactile lift */
 .monoTile:hover {
-  background: rgba(14, 165, 233, 0.08);
-  border-color: rgba(14, 165, 233, 0.25);
-  box-shadow: 0 0 12px rgba(14, 165, 233, 0.15);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.1);
+  transform: scale(1.04);
   z-index: 5;
 }
 
@@ -86,8 +86,8 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  color: var(--text);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  color: #d4e7f5;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
   letter-spacing: 0.1px;
 }
 
@@ -154,67 +154,63 @@
   z-index: 2;
 }
 
-/* --- Color Bars ------------------------------------------------------ */
+/* --- Color Bars — THE MOST IMPORTANT VISUAL ELEMENT ------------------- */
 .monoTile .colorBar {
   position: absolute;
-  border-radius: 3px;
-  opacity: 0.85;
+  border-radius: 4px;
+  opacity: 1;
 }
 
-/* Bottom tiles: bar on top */
+/* Bottom tiles: bold bar on top */
 .monoTile.bottom .colorBar {
   top: 0;
-  left: 5px;
-  right: 5px;
-  height: 6px;
-  width: calc(100% - 10px);
-  border-radius: 3px;
+  left: 4px;
+  right: 4px;
+  height: 14px;
+  width: calc(100% - 8px);
+  border-radius: 0 0 4px 4px;
 }
 
-/* Top tiles: bar on bottom */
+/* Top tiles: bold bar on bottom */
 .monoTile.top .colorBar {
   bottom: 0;
-  left: 5px;
-  right: 5px;
-  height: 6px;
-  width: calc(100% - 10px);
-  border-radius: 3px;
+  left: 4px;
+  right: 4px;
+  height: 14px;
+  width: calc(100% - 8px);
+  border-radius: 4px 4px 0 0;
 }
 
-/* Left tiles: bar on right edge */
+/* Left tiles: bold bar on right edge */
 .monoTile.left .colorBar {
-  width: 6px;
-  height: calc(100% - 10px);
-  top: 5px;
-  bottom: 5px;
+  width: 12px;
+  height: calc(100% - 8px);
+  top: 4px;
+  bottom: 4px;
   right: 0;
   left: auto;
-  border-radius: 0 4px 4px 0;
-}
-
-/* Right tiles: bar on left edge */
-.monoTile.right .colorBar {
-  width: 6px;
-  height: calc(100% - 10px);
-  top: 5px;
-  bottom: 5px;
-  left: 0;
-  right: auto;
   border-radius: 4px 0 0 4px;
 }
 
-/* Color bar glow — uses data-color via inline box-shadow in JSX */
+/* Right tiles: bold bar on left edge */
+.monoTile.right .colorBar {
+  width: 12px;
+  height: calc(100% - 8px);
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  right: auto;
+  border-radius: 0 4px 4px 0;
+}
 
-/* --- Corners --------------------------------------------------------- */
+/* --- Corners — LANDMARK PRESENCE ------------------------------------- */
 .monoTile.corner {
   font-size: clamp(11px, 1vw, 14px);
   font-weight: 800;
-  color: var(--text-bright);
+  color: #f0f8ff;
   justify-content: center;
   min-width: 0;
   min-height: 0;
-  background: rgba(14, 165, 233, 0.06);
-  border: 2px solid rgba(14, 165, 233, 0.2);
   z-index: 4;
 }
 
@@ -231,52 +227,56 @@
   display: none;
 }
 
-/* GO — warm golden treasure */
+/* GO — green like money, welcoming start */
 .monoTile[data-id="0"] {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(14, 165, 233, 0.05));
-  border-color: rgba(245, 158, 11, 0.35);
-  box-shadow: inset 0 0 24px rgba(245, 158, 11, 0.1), 0 0 12px rgba(245, 158, 11, 0.06);
+  background: linear-gradient(135deg, #2d6a1e, #1a5c10);
+  border: 2px solid #4ade80;
+  box-shadow: inset 0 0 20px rgba(74, 222, 128, 0.12), 0 0 12px rgba(74, 222, 128, 0.1);
 }
 
 .monoTile[data-id="0"] .label {
-  color: #fbbf24;
-  text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+  color: #4ade80;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
+  font-weight: 800;
 }
 
-/* Jail — cool grey-blue, subdued */
+/* Jail — grey, institutional, restrictive */
 .monoTile[data-id="10"] {
-  background: linear-gradient(135deg, rgba(100, 116, 139, 0.14), rgba(14, 165, 233, 0.04));
-  border-color: rgba(100, 116, 139, 0.35);
-  box-shadow: inset 0 0 20px rgba(100, 116, 139, 0.06);
+  background: linear-gradient(135deg, #3d3d3d, #2a2a2a);
+  border: 2px solid #6b7280;
+  box-shadow: inset 0 0 16px rgba(107, 114, 128, 0.08);
 }
 
 .monoTile[data-id="10"] .label {
-  color: #94a3b8;
-  text-shadow: 0 0 8px rgba(100, 116, 139, 0.2);
+  color: #9ca3af;
+  text-shadow: 0 0 8px rgba(156, 163, 175, 0.2);
+  font-weight: 800;
 }
 
-/* Free Stop — calm teal safe harbor */
+/* Free Stop — calm deep ocean blue */
 .monoTile[data-id="20"] {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(14, 165, 233, 0.04));
-  border-color: rgba(20, 184, 166, 0.3);
-  box-shadow: inset 0 0 24px rgba(20, 184, 166, 0.08), 0 0 12px rgba(20, 184, 166, 0.04);
+  background: linear-gradient(135deg, #1e3a5f, #0f4c75);
+  border: 2px solid #38bdf8;
+  box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.1), 0 0 12px rgba(56, 189, 248, 0.08);
 }
 
 .monoTile[data-id="20"] .label {
-  color: #2dd4bf;
-  text-shadow: 0 0 10px rgba(20, 184, 166, 0.25);
+  color: #38bdf8;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+  font-weight: 800;
 }
 
-/* Go To Jail — deep red warning */
+/* Go To Jail — dark red, ominous warning */
 .monoTile[data-id="30"] {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(14, 165, 233, 0.03));
-  border-color: rgba(239, 68, 68, 0.3);
-  box-shadow: inset 0 0 24px rgba(239, 68, 68, 0.08), 0 0 12px rgba(239, 68, 68, 0.04);
+  background: linear-gradient(135deg, #5c1a1a, #3b0f0f);
+  border: 2px solid #ef4444;
+  box-shadow: inset 0 0 20px rgba(239, 68, 68, 0.12), 0 0 12px rgba(239, 68, 68, 0.1);
 }
 
 .monoTile[data-id="30"] .label {
   color: #f87171;
-  text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+  font-weight: 800;
 }
 
 /* --- By Kind --------------------------------------------------------- */
@@ -284,109 +284,107 @@
 /* Property — bold label */
 .monoTile.kind-property .label {
   font-weight: 600;
-  color: var(--text);
+  color: #e8f0f8;
 }
 
-/* Chance — mysterious blue-purple shimmer */
+/* Chance — blue-purple mystical */
 .monoTile.kind-chance {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.07), rgba(139, 92, 246, 0.05));
-  border-color: rgba(14, 165, 233, 0.18);
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(129, 140, 248, 0.3);
 }
 
 .monoTile.kind-chance .label {
   font-weight: 700;
-  color: #38bdf8;
-  text-shadow: 0 0 8px rgba(14, 165, 233, 0.3);
+  color: #818cf8;
+  text-shadow: 0 0 10px rgba(99, 102, 241, 0.35);
 }
 
-/* Chest — warm gold treasure glow */
+/* Chest — golden treasure */
 .monoTile.kind-chest {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), rgba(234, 179, 8, 0.03));
-  border-color: rgba(245, 158, 11, 0.15);
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(251, 191, 36, 0.25);
 }
 
 .monoTile.kind-chest .label {
   font-weight: 700;
   color: #fbbf24;
-  text-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
 }
 
-/* Tax — warning orange tint */
+/* Tax — warning orange */
 .monoTile.kind-tax {
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.06), rgba(245, 158, 11, 0.03));
-  border-color: rgba(249, 115, 22, 0.15);
+  background: rgba(249, 115, 22, 0.1);
+  border-color: rgba(251, 146, 60, 0.25);
 }
 
 .monoTile.kind-tax .label {
   font-weight: 700;
   color: #fb923c;
-  text-shadow: 0 0 8px rgba(249, 115, 22, 0.2);
+  text-shadow: 0 0 10px rgba(249, 115, 22, 0.3);
 }
 
-/* Rail — metallic silver / steel */
+/* Rail — metallic silver */
 .monoTile.kind-rail {
-  background: linear-gradient(135deg, rgba(148, 163, 184, 0.08), rgba(100, 116, 139, 0.04));
-  border-color: rgba(148, 163, 184, 0.15);
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(226, 232, 240, 0.2);
 }
 
 .monoTile.kind-rail .label {
   font-variant-caps: small-caps;
   letter-spacing: 0.3px;
-  color: #cbd5e1;
-  text-shadow: 0 0 6px rgba(148, 163, 184, 0.2);
+  color: #e2e8f0;
+  text-shadow: 0 0 8px rgba(148, 163, 184, 0.25);
 }
 
-/* Utility — industrial grey-green */
+/* Utility — teal-tinged */
 .monoTile.kind-utility {
-  background: linear-gradient(135deg, rgba(168, 162, 158, 0.06), rgba(20, 184, 166, 0.03));
-  border-color: rgba(168, 162, 158, 0.12);
+  background: rgba(20, 184, 166, 0.1);
+  border-color: rgba(94, 234, 212, 0.2);
 }
 
 .monoTile.kind-utility .label {
   font-variant-caps: small-caps;
-  color: #a8a29e;
-  text-shadow: 0 0 6px rgba(168, 162, 158, 0.15);
+  color: #5eead4;
+  text-shadow: 0 0 8px rgba(20, 184, 166, 0.25);
 }
 
 /* Go to jail kind */
 .monoTile.kind-gotojail .label {
   font-weight: 800;
   color: #f87171;
-  text-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
 }
 
 /* --- Selected Tile --------------------------------------------------- */
 .monoTile.selected {
   outline: none;
-  border-color: rgba(14, 165, 233, 0.6);
-  background: rgba(14, 165, 233, 0.1);
-  transform: scale(1.03);
-  z-index: 6;
+  border: 2px solid #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(1.05);
+  z-index: 10;
   box-shadow:
-    0 0 6px rgba(14, 165, 233, 0.5),
-    0 0 18px rgba(14, 165, 233, 0.3),
-    0 0 40px rgba(14, 165, 233, 0.1),
-    inset 0 0 12px rgba(14, 165, 233, 0.08);
+    0 0 0 3px rgba(255, 255, 255, 0.3),
+    0 0 20px rgba(255, 255, 255, 0.15);
   transition: all 180ms ease;
 }
 
 /* --- Mortgaged ------------------------------------------------------- */
 .monoTile.mortgaged {
-  filter: grayscale(0.7) brightness(0.6);
-  opacity: 0.7;
+  filter: grayscale(0.8) brightness(0.5);
+  opacity: 0.5;
   background-image:
     repeating-linear-gradient(
       -45deg,
       transparent,
       transparent 4px,
-      rgba(148, 163, 184, 0.06) 4px,
-      rgba(148, 163, 184, 0.06) 8px
+      rgba(148, 163, 184, 0.1) 4px,
+      rgba(148, 163, 184, 0.1) 8px
     );
 }
 
 .monoTile.mortgaged:hover {
-  filter: grayscale(0.5) brightness(0.7);
-  opacity: 0.85;
+  filter: grayscale(0.6) brightness(0.65);
+  opacity: 0.7;
 }
 
 /* --- Owner Stripe ---------------------------------------------------- */
@@ -396,7 +394,7 @@
   height: 100%;
   right: 0;
   top: 0;
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 8px 8px 0;
   opacity: 0.9;
 }
 
@@ -411,21 +409,21 @@
 }
 
 .house {
-  width: 7px;
-  height: 7px;
+  width: 9px;
+  height: 9px;
   background: #22c55e;
   border: 1px solid #15803d;
   border-radius: 2px;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
 }
 
 .hotel {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   background: #ef4444;
   border: 1px solid #991b1b;
   border-radius: 2px;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
 }
 
 /* --- Player Tokens --------------------------------------------------- */
@@ -439,10 +437,10 @@
 }
 
 .token {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  border: 1.5px solid rgba(0, 0, 0, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.85);
   transition: transform 200ms ease, box-shadow 200ms ease;
 }
 
@@ -459,7 +457,7 @@
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  border-radius: 10px;
+  border-radius: 12px;
   border: none;
   z-index: 0;
   pointer-events: none;
@@ -467,17 +465,17 @@
   position: relative;
 
   background:
-    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(14, 165, 233, 0.06), transparent),
-    radial-gradient(ellipse 60% 45% at 25% 65%, rgba(20, 184, 166, 0.04), transparent),
-    radial-gradient(ellipse 50% 35% at 75% 30%, rgba(14, 165, 233, 0.03), transparent),
-    radial-gradient(circle at 50% 50%, rgba(4, 14, 30, 0.8), rgba(4, 10, 21, 0.95));
+    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(14, 165, 233, 0.1), transparent),
+    radial-gradient(ellipse 60% 45% at 25% 65%, rgba(20, 184, 166, 0.07), transparent),
+    radial-gradient(ellipse 50% 35% at 75% 30%, rgba(14, 165, 233, 0.06), transparent),
+    radial-gradient(circle at 50% 50%, rgba(8, 30, 56, 0.85), rgba(6, 22, 42, 0.95));
 }
 
 .boardCenter::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 220px 220px at 50% 50%, rgba(14, 165, 233, 0.04), transparent);
+  background: radial-gradient(ellipse 220px 220px at 50% 50%, rgba(14, 165, 233, 0.09), transparent);
   animation: caustic 8s ease-in-out infinite alternate;
 }
 
@@ -486,7 +484,7 @@
   max-height: 68%;
   object-fit: contain;
   opacity: 0.95;
-  filter: drop-shadow(0 4px 24px rgba(14, 165, 233, 0.3));
+  filter: drop-shadow(0 4px 30px rgba(14, 165, 233, 0.4)) drop-shadow(0 0 60px rgba(14, 165, 233, 0.15));
   position: relative;
   z-index: 1;
 }
@@ -497,7 +495,7 @@
   font-size: 28px;
   text-transform: uppercase;
   color: #fff;
-  text-shadow: 0 2px 20px rgba(14, 165, 233, 0.35);
+  text-shadow: 0 2px 20px rgba(14, 165, 233, 0.4);
 }
 
 .centerSub {
@@ -518,50 +516,53 @@
   padding: 10px 22px;
   border-radius: 14px;
 
-  background: linear-gradient(180deg, rgba(10, 22, 40, 0.95), rgba(4, 10, 21, 0.98));
-  border: 1px solid rgba(14, 165, 233, 0.22);
+  background: linear-gradient(180deg, rgba(12, 45, 72, 0.95), rgba(8, 30, 50, 0.98));
+  border: 2px solid rgba(77, 168, 218, 0.35);
   box-shadow:
-    0 -4px 20px rgba(14, 165, 233, 0.08),
+    0 -4px 20px rgba(14, 165, 233, 0.1),
     0 4px 16px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(14, 165, 233, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* --- Die ------------------------------------------------------------- */
+/* --- Die — bright, tactile objects ----------------------------------- */
 .die {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
   display: grid;
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
   gap: 2px;
   position: relative;
 
-  background: linear-gradient(145deg, #0c1f38, #0a1628);
-  border: 2px solid rgba(14, 165, 233, 0.22);
+  /* Visible ocean blue — NOT dark boxes */
+  background: linear-gradient(145deg, #1e3a5f, #2d5a80);
+  border: 2px solid #4da8da;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 4px 12px rgba(0, 0, 0, 0.4);
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 14px rgba(0, 0, 0, 0.4),
+    0 0 8px rgba(77, 168, 218, 0.2);
   transition: transform 100ms ease, box-shadow 100ms ease;
 }
 
 .die:not(.rolling):hover {
   transform: translateY(-2px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 6px 16px rgba(14, 165, 233, 0.15);
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 6px 18px rgba(77, 168, 218, 0.25),
+    0 0 12px rgba(77, 168, 218, 0.15);
 }
 
 .die.rolling {
   animation: shake 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
 }
 
-/* Pips */
+/* Pips — bright white with blue glow */
 .pip {
   width: 9px;
   height: 9px;
-  background: #e0f2fe;
+  background: #ffffff;
   border-radius: 50%;
-  box-shadow: 0 0 8px rgba(14, 165, 233, 0.5);
+  box-shadow: 0 0 6px rgba(77, 168, 218, 0.6), 0 0 12px rgba(14, 165, 233, 0.3);
   margin: auto;
 }
 
@@ -575,11 +576,11 @@
 .pip.pos-8 { grid-row: 3; grid-column: 2; }
 .pip.pos-9 { grid-row: 3; grid-column: 3; }
 
-/* --- Roll Button ----------------------------------------------------- */
+/* --- Roll Button — bright, attention-grabbing CTA -------------------- */
 .rollBtn {
   margin-left: 6px;
   min-width: 68px;
-  padding: 9px 18px;
+  padding: 10px 20px;
   border-radius: 10px;
   cursor: pointer;
 
@@ -587,18 +588,19 @@
   font-weight: 700;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: var(--text-bright);
+  color: #ffffff;
 
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(20, 184, 166, 0.22));
-  border: 1px solid rgba(14, 165, 233, 0.45);
-  box-shadow: 0 0 14px rgba(14, 165, 233, 0.18);
+  background: linear-gradient(135deg, #0ea5e9, #14b8a6);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 18px rgba(14, 165, 233, 0.3), 0 4px 12px rgba(0, 0, 0, 0.25);
   transition: all 200ms ease;
 }
 
 .rollBtn:hover:not(:disabled) {
-  box-shadow: 0 0 24px rgba(14, 165, 233, 0.3);
-  transform: translateY(-1px);
-  border-color: rgba(14, 165, 233, 0.65);
+  box-shadow: 0 0 28px rgba(14, 165, 233, 0.45), 0 6px 16px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.4);
+  background: linear-gradient(135deg, #38bdf8, #2dd4bf);
 }
 
 .rollBtn:disabled {
@@ -611,25 +613,25 @@
 /* --- Animations ------------------------------------------------------ */
 @keyframes caustic {
   0%   { transform: translate(0, 0) scale(1); opacity: 0.5; }
-  33%  { transform: translate(12px, -8px) scale(1.08); opacity: 0.7; }
-  66%  { transform: translate(-8px, 10px) scale(1.12); opacity: 0.8; }
-  100% { transform: translate(-5px, 5px) scale(0.95); opacity: 0.6; }
+  33%  { transform: translate(12px, -8px) scale(1.08); opacity: 0.75; }
+  66%  { transform: translate(-8px, 10px) scale(1.12); opacity: 0.85; }
+  100% { transform: translate(-5px, 5px) scale(0.95); opacity: 0.65; }
 }
 
 @keyframes shake {
   0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
-  15%  { transform: translate(-3px, 2px) rotate(-6deg) scale(1.05); }
-  30%  { transform: translate(3px, -2px) rotate(5deg) scale(0.97); }
-  45%  { transform: translate(-2px, 3px) rotate(-4deg) scale(1.03); }
-  60%  { transform: translate(3px, -1px) rotate(6deg) scale(0.98); }
-  75%  { transform: translate(-1px, 2px) rotate(-3deg) scale(1.01); }
+  15%  { transform: translate(-4px, 3px) rotate(-8deg) scale(1.08); }
+  30%  { transform: translate(4px, -3px) rotate(7deg) scale(0.95); }
+  45%  { transform: translate(-3px, 4px) rotate(-6deg) scale(1.08); }
+  60%  { transform: translate(4px, -2px) rotate(8deg) scale(0.96); }
+  75%  { transform: translate(-2px, 3px) rotate(-4deg) scale(1.04); }
   100% { transform: translate(0, 0) rotate(0deg) scale(1); }
 }
 
 @keyframes token-pulse {
-  0%   { transform: scale(1); box-shadow: 0 0 8px currentColor; }
-  50%  { transform: scale(1.15); box-shadow: 0 0 16px currentColor, 0 0 28px currentColor; }
-  100% { transform: scale(1); box-shadow: 0 0 8px currentColor; }
+  0%   { transform: scale(1); box-shadow: 0 0 10px currentColor; }
+  50%  { transform: scale(1.25); box-shadow: 0 0 20px currentColor, 0 0 36px currentColor; }
+  100% { transform: scale(1); box-shadow: 0 0 10px currentColor; }
 }
 
 /* --- Reduced Motion -------------------------------------------------- */
@@ -662,8 +664,8 @@
   }
 
   .die {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
   }
 
   .pip {

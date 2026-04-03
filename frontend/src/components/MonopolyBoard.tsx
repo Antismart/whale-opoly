@@ -82,8 +82,8 @@ export function MonopolyBoard({
             .filter(Boolean)
             .join(' ')
 
-          // Grid placement + optional property color tint
-          const tint = t.color ? `linear-gradient(to bottom, ${t.color}11, transparent)` : undefined
+          // Grid placement + optional property color tint (15% opacity for visible group identity)
+          const tint = t.color ? `linear-gradient(to bottom, ${t.color}26, transparent)` : undefined
           const style: React.CSSProperties = {
             gridRow: row,
             gridColumn: col,
@@ -105,13 +105,16 @@ export function MonopolyBoard({
               data-side={side}
               data-kind={t.kind}
             >
-              {/* Color bar */}
+              {/* Color bar — bold, full-opacity strip */}
               {t.color && (
                 <span
                   className="colorBar"
                   style={{
                     background: t.color,
-                    boxShadow: `0 0 8px ${t.color}66`,
+                    boxShadow: `0 0 8px ${t.color}55`,
+                    ...(side === 'top' || side === 'bottom'
+                      ? { minHeight: 12 }
+                      : { minWidth: 10 }),
                   }}
                 />
               )}
