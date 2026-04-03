@@ -5,7 +5,7 @@ import { WalletButton } from './WalletButton'
 import { useDojoSDK, useEntityQuery, useModels } from "@dojoengine/sdk/react"
 import { ToriiQueryBuilder, MemberClause } from "@dojoengine/sdk"
 import { useAccount } from "@starknet-react/core"
-import { CairoCustomEnum } from "starknet"
+import { CairoCustomEnum, RpcProvider } from "starknet"
 import { useToast } from './useToast'
 import { MonopolyBoard } from './components/MonopolyBoard'
 import { PlayersPanel } from './components/PlayersPanel'
@@ -223,9 +223,33 @@ function App() {
   const rollDiceAction = async () => {
     if (!account || !client || !currentGameId) return null;
     try {
-      await client.board_actions.rollDice(account, currentGameId);
-      // Contract records the roll on-chain. We generate local dice for UI
-      // until Torii event subscriptions are wired up to read DiceRolled events.
+      const result = await client.board_actions.rollDice(account, currentGameId);
+
+      // Parse dice values from the transaction receipt's DiceRolled event
+      if (result?.transaction_hash) {
+        try {
+          const rpc = new RpcProvider({ nodeUrl: 'https://api.cartridge.gg/x/starknet/sepolia' });
+          const receipt = await rpc.waitForTransaction(result.transaction_hash);
+
+          // DiceRolled event has: game_id, player (keys), dice1, dice2, total, timestamp (data)
+          if ('events' in receipt && Array.isArray(receipt.events) && receipt.events.length > 0) {
+            for (const event of receipt.events) {
+              // Event data contains dice values — dice1 and dice2 are the first two data fields
+              if (event.data && event.data.length >= 4) {
+                const dice1 = Number(BigInt(event.data[0]));
+                const dice2 = Number(BigInt(event.data[1]));
+                if (dice1 >= 1 && dice1 <= 6 && dice2 >= 1 && dice2 <= 6) {
+                  return { dice1, dice2, success: true };
+                }
+              }
+            }
+          }
+        } catch (receiptError) {
+          console.error('Failed to parse dice from receipt:', receiptError);
+        }
+      }
+
+      // Fallback: if receipt parsing fails, use local random
       const dice1 = Math.floor(Math.random() * 6) + 1;
       const dice2 = Math.floor(Math.random() * 6) + 1;
       return { dice1, dice2, success: true };
