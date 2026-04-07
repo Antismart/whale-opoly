@@ -583,3 +583,44 @@ body {
 @keyframes toast-spin {
   to { transform: rotate(360deg); }
 }
+
+/* === Mobile Gate === */
+.mobile-gate {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .mobile-gate {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: var(--bg, #040a15);
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+
+  .mobile-gate-content {
+    text-align: center;
+    max-width: 360px;
+  }
+
+  .mobile-gate-content h1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-bright, #f0f9ff);
+    margin: 0 0 12px;
+  }
+
+  .mobile-gate-content p {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--muted, #7aa2c4);
+    margin: 0;
+  }
+
+  .app {
+    display: none;
+  }
+}

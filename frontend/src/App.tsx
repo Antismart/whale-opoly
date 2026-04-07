@@ -677,8 +677,20 @@ function App() {
   const hasJailPass = curPlayer.id ? (jailPasses[curPlayer.id]||0)>0 : false
   const isMortgaged = !!mortgages[selected]
 
-  // --- JSX --- (retain existing UI below; only modify onDraw + card modal className)
+  // --- JSX ---
   return (
+    <>
+    {/* Mobile warning overlay */}
+    <div className="mobile-gate">
+      <div className="mobile-gate-content">
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🐋</div>
+        <h1>Whale-Opoly</h1>
+        <p>This game is designed for desktop screens. Please open it on a laptop or desktop computer for the best experience.</p>
+        <div style={{ marginTop: 20, padding: '10px 20px', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
+          Minimum recommended: 1024px wide
+        </div>
+      </div>
+    </div>
     <div className="app">
       <aside className="sideNav">
         <div className="brand">
@@ -1275,6 +1287,7 @@ function App() {
         ))}
       </div>
     </div>
+    </>
   )
 }
 
