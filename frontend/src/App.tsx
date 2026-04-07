@@ -566,6 +566,7 @@ function App() {
 
   async function rollDice(){
     if(rolling||openCard) return;
+    if(!isMyTurn) { toastError("Not your turn!"); return; }
     setRolling(true);
 
     try {
@@ -593,10 +594,13 @@ function App() {
     const r2=1+Math.floor(Math.random()*6);
     setTimeout(() => handleDoublesAndMove(r1, r2), 420);
   }
-  async function buyProperty(id:number){ 
-    const t=monoTiles[id]; 
-    if(!t) return; 
-    if(!['property','rail','utility'].includes(t.kind)) return; 
+  function isCurrentPlayer() { return !!account && game.players[game.currentIdx]?.id === account.address; }
+
+  async function buyProperty(id:number){
+    if(!isCurrentPlayer()) { toastError("Not your turn!"); return; }
+    const t=monoTiles[id];
+    if(!t) return;
+    if(!['property','rail','utility'].includes(t.kind)) return;
     const cur=game.players[game.currentIdx]; 
     if(!cur) return;
     if(game.ownership[id]) return log('warn','Owned already',''); 
@@ -628,11 +632,12 @@ function App() {
     }));
     log('good','Bought (local)',`${t.label} $${cost}`);
   }
-  async function buildHouse(id:number){ const t=monoTiles[id]; if(!t||t.kind!=='property') return; const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); if(!ownsGroup(cur.id,id)) return log('warn','Need set',''); const current=game.houses[id]||0; if(current>=5) return log('warn','Max built',''); const cost=current===4?houseCost[id]*2:houseCost[id]; if((game.balances[cur.id]||0)<cost) return log('warn','Need funds',`$${cost}`); if (account && client && currentGameId) { try { await client.board_actions.developProperty(account, currentGameId, id); } catch (error) { console.error('Develop property contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, houses:{...g.houses,[id]:current+1}, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-cost}})); log('good', current===4?'Hotel built':'House built', `-$${cost}`) }
-  async function mortgageProperty(id:number){ if(mortgages[id]) return log('warn','Already mortgaged',''); const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); const val=Math.floor((price[id]||0)/2); if (account && client && currentGameId) { try { await client.board_actions.mortgageProperty(account, currentGameId, id); } catch (error) { console.error('Mortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>({...m,[id]:true})); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)+val}})); log('info','Mortgaged',`+$${val}`) }
-  async function unmortgageProperty(id:number){ if(!mortgages[id]) return; const cur=game.players[game.currentIdx]; if(!cur) return; const val=Math.floor((price[id]||0)/2)*1.1; if((game.balances[cur.id]||0)<val) return log('warn','Need funds',`$${val}`); if (account && client && currentGameId) { try { await client.board_actions.unmortgageProperty(account, currentGameId, id); } catch (error) { console.error('Unmortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>{const n={...m}; delete n[id]; return n}); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-val}})); log('info','Unmortgaged',`-$${val}`) }
-  async function payBail(){ const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((game.balances[cur.id]||0)<50) return log('warn','Need $50',''); if (account && client && currentGameId) { try { await client.board_actions.payBail(account, currentGameId); } catch (error) { console.error('Pay bail contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-50}})); setInJail(j=>({...j,[cur.id]:0})); log('good','Bail paid','Freed') }
+  async function buildHouse(id:number){ if(!isCurrentPlayer()) { toastError("Not your turn!"); return; } const t=monoTiles[id]; if(!t||t.kind!=='property') return; const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); if(!ownsGroup(cur.id,id)) return log('warn','Need set',''); const current=game.houses[id]||0; if(current>=5) return log('warn','Max built',''); const cost=current===4?houseCost[id]*2:houseCost[id]; if((game.balances[cur.id]||0)<cost) return log('warn','Need funds',`$${cost}`); if (account && client && currentGameId) { try { await client.board_actions.developProperty(account, currentGameId, id); } catch (error) { console.error('Develop property contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, houses:{...g.houses,[id]:current+1}, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-cost}})); log('good', current===4?'Hotel built':'House built', `-$${cost}`) }
+  async function mortgageProperty(id:number){ if(!isCurrentPlayer()) { toastError("Not your turn!"); return; } if(mortgages[id]) return log('warn','Already mortgaged',''); const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); const val=Math.floor((price[id]||0)/2); if (account && client && currentGameId) { try { await client.board_actions.mortgageProperty(account, currentGameId, id); } catch (error) { console.error('Mortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>({...m,[id]:true})); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)+val}})); log('info','Mortgaged',`+$${val}`) }
+  async function unmortgageProperty(id:number){ if(!isCurrentPlayer()) { toastError("Not your turn!"); return; } if(!mortgages[id]) return; const cur=game.players[game.currentIdx]; if(!cur) return; const val=Math.floor((price[id]||0)/2)*1.1; if((game.balances[cur.id]||0)<val) return log('warn','Need funds',`$${val}`); if (account && client && currentGameId) { try { await client.board_actions.unmortgageProperty(account, currentGameId, id); } catch (error) { console.error('Unmortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>{const n={...m}; delete n[id]; return n}); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-val}})); log('info','Unmortgaged',`-$${val}`) }
+  async function payBail(){ if(!isCurrentPlayer()) { toastError("Not your turn!"); return; } const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((game.balances[cur.id]||0)<50) return log('warn','Need $50',''); if (account && client && currentGameId) { try { await client.board_actions.payBail(account, currentGameId); } catch (error) { console.error('Pay bail contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-50}})); setInJail(j=>({...j,[cur.id]:0})); log('good','Bail paid','Freed') }
   async function endTurn(){
+    if(!isCurrentPlayer()) { toastError("Not your turn!"); return; }
     if(openCard) return log('warn','Resolve card','Apply first');
 
     // If player rolled doubles, don't advance turn (they go again)
@@ -663,11 +668,12 @@ function App() {
 
   // Derived
   const curPlayer = game.players[game.currentIdx] || { id: '', name: 'Unknown', color: '#666' }
+  const isMyTurn = !!account && curPlayer.id === account.address
   const tile = monoTiles[selected]
   const owner = game.ownership[selected]
-  const canBuy = tile && ['property','rail','utility'].includes(tile.kind) && !owner
-  const canBuild = tile && tile.kind==='property' && owner===curPlayer.id && ownsGroup(curPlayer.id, selected)
-  const canDrawCard = tile && ['chance','chest'].includes(tile.kind) && !openCard
+  const canBuy = isMyTurn && tile && ['property','rail','utility'].includes(tile.kind) && !owner
+  const canBuild = isMyTurn && tile && tile.kind==='property' && owner===curPlayer.id && ownsGroup(curPlayer.id, selected)
+  const canDrawCard = isMyTurn && tile && ['chance','chest'].includes(tile.kind) && !openCard
   const hasJailPass = curPlayer.id ? (jailPasses[curPlayer.id]||0)>0 : false
   const isMortgaged = !!mortgages[selected]
 
@@ -907,8 +913,13 @@ function App() {
             <div className="col col-right">
               <div className="panelTitle">
                 <span className="icon" aria-hidden>{EventIcon}</span>
-                Turn & actions
+                {isMyTurn ? 'Your turn' : `${curPlayer.name}'s turn`}
               </div>
+              {!isMyTurn && game.players.length > 1 && (
+                <div style={{ padding: '10px 14px', background: 'rgba(14,165,233,0.06)', border: '1px solid rgba(14,165,233,0.15)', borderRadius: 10, marginBottom: 12, fontSize: 13, color: 'var(--muted)' }}>
+                  Waiting for <strong style={{ color: curPlayer.color }}>{curPlayer.name}</strong> to play...
+                </div>
+              )}
               <ActionBar
                 cur={curPlayer}
                 tile={tile}
