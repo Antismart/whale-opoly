@@ -343,7 +343,7 @@ function App() {
   };
   
   // --- Toast & loading state ---
-  const { toasts, success: toastSuccess, error: toastError, info: toastInfo, loading: toastLoading, removeToast } = useToast();
+  const { toasts, success: toastSuccess, error: toastError, info: toastInfo, removeToast } = useToast();
   const [actionLoading, setActionLoading] = useState<string | null>(null) // 'creating' | 'joining' | 'rolling' | 'buying' | null
 
   // --- Core state ---

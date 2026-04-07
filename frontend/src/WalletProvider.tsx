@@ -2,11 +2,9 @@ import React from 'react';
 import { sepolia } from '@starknet-react/chains';
 import { StarknetConfig, jsonRpcProvider } from '@starknet-react/core';
 import { ControllerConnector } from '@cartridge/connector';
-import type { SessionPolicies } from '@cartridge/controller';
-
 // Session policies for game contracts — pre-approve common game actions
 // so players don't have to sign every move
-const policies: SessionPolicies = {
+const policies = {
   contracts: {
     // Contract addresses will be populated from manifest after deployment
     // For now, these are the methods that will be pre-approved
