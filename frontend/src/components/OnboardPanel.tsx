@@ -5,7 +5,7 @@ import { BoardIcon } from './Icons'
 export function OnboardPanel({ lobbies, onCreate, onJoin, onStart, onCancel, actionLoading }:{ lobbies: Lobby[]; onCreate: (maxPlayers: number, host: string, entryEth: string)=>Promise<void>; onJoin: (gameId: number, username: string)=>Promise<void>; onStart?: (gameId: number)=>Promise<void>; onCancel?: (gameId: number)=>Promise<void>; actionLoading?: string | null }) {
   const [maxPlayers, setMaxPlayers] = useState(4)
   const [username, setUsername] = useState('')
-  const [entryEth, setEntryEth] = useState('0.10')
+  const [entryEth, setEntryEth] = useState('0.01')
   return (
     <section className="panel">
       <div className="panelTitle">
@@ -18,8 +18,13 @@ export function OnboardPanel({ lobbies, onCreate, onJoin, onStart, onCancel, act
           <input type="text" placeholder="e.g. WhaleLord" value={username} onChange={(e)=>setUsername(e.target.value)} />
         </label>
         <label className="field">
-          <span>Entry amount (ETH)</span>
-          <input type="number" min={0} step={0.01} value={entryEth} onChange={(e)=>setEntryEth(e.target.value)} />
+          <span>Entry tier</span>
+          <select value={entryEth} onChange={(e)=>setEntryEth(e.target.value)} style={{ background: 'var(--surface-2, rgba(255,255,255,0.06))', border: '1px solid var(--border-default, rgba(255,255,255,0.12))', color: 'var(--text, #e0f2fe)', borderRadius: 8, padding: '8px 10px', minWidth: 140 }}>
+            <option value="0.01">Bronze — 0.01 ETH</option>
+            <option value="0.1">Silver — 0.1 ETH</option>
+            <option value="1">Gold — 1 ETH</option>
+            <option value="10">Platinum — 10 ETH</option>
+          </select>
         </label>
         <label className="field">
       <span>Max players</span>

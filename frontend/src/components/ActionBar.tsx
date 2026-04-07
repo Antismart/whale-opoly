@@ -27,7 +27,7 @@ export function ActionBar({ cur, tile, canBuy, canBuild, canDraw, onBuy, onBuild
         <span className="turnText">{cur.name}'s turn {inJailTurns>0 && `(Jail: ${inJailTurns})`}</span>
         {tile && <span className="currentTile">• {tile.label}</span>}
         <span className="spacer" />
-        <span className="balance">${balances[cur.id]}</span>
+        <span className="balance">${(balances[cur.id] || 0).toLocaleString()}</span>
       </div>
       <div className="btnRow">
         <button className="btn glow" onClick={onEndTurn}>End Turn</button>

@@ -808,7 +808,7 @@ function App() {
                     <div className="stat"><div className="statLabel">Players</div><div className="statValue">{game.players.length}</div></div>
                     <div className="stat"><div className="statLabel">Owned tiles</div><div className="statValue">{ownedCount}</div></div>
                     <div className="stat"><div className="statLabel">Houses built</div><div className="statValue">{housesBuilt}</div></div>
-                    <div className="stat"><div className="statLabel">Cash total</div><div className="statValue">${cashTotal}</div></div>
+                    <div className="stat"><div className="statLabel">Cash total</div><div className="statValue">${cashTotal.toLocaleString()}</div></div>
                     <div className="stat"><div className="statLabel">Cards left</div><div className="statValue">Ch {chanceDeck.length} • Cs {chestDeck.length}</div></div>
                   </div>
                 )

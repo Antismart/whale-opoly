@@ -24,7 +24,13 @@ async function gql<T>(query: string, variables?: Record<string, unknown>): Promi
 const TIER_TO_ETH: Record<string, string> = { Bronze: '0.01', Silver: '0.1', Gold: '1', Platinum: '10' }
 
 export async function fetchOpenLobbies(): Promise<OpenLobby[]> {
-  type Node = { game_id: string; status: string; entry_tier?: string; players_count?: number; players?: unknown[] }
+  type Node = {
+    game_id: string;
+    status: string;
+    entry_tier?: string;
+    players?: string[];
+    current_turn?: number;
+  }
   type Resp = {
     whaleOpolyGameStateModels: {
       edges: { node: Node }[]
@@ -33,7 +39,7 @@ export async function fetchOpenLobbies(): Promise<OpenLobby[]> {
 
   const q = `query OpenLobbies($first: Int) {
     whaleOpolyGameStateModels(first: $first) {
-      edges { node { game_id status entry_tier players_count } }
+      edges { node { game_id status entry_tier players current_turn } }
     }
   }`
 
@@ -43,9 +49,13 @@ export async function fetchOpenLobbies(): Promise<OpenLobby[]> {
   return edges
     .filter(({ node }) => node.status === 'Lobby' || node.status === 'LOBBY' || node.status === 'Waiting')
     .map(({ node }) => {
-      const players = node.players_count ?? (Array.isArray(node.players) ? node.players.length : 0)
-      const entryEth = node.entry_tier ? (TIER_TO_ETH[node.entry_tier] || '0.10') : '0.10'
-      return { gameId: Number(node.game_id), entryEth, maxPlayers: 6, players, host: 'on-chain' }
+      const playerList = Array.isArray(node.players) ? node.players : []
+      const players = playerList.length
+      const entryEth = node.entry_tier ? (TIER_TO_ETH[node.entry_tier] || '0.01') : '0.01'
+      const host = playerList.length > 0
+        ? `${String(playerList[0]).slice(0, 6)}...${String(playerList[0]).slice(-4)}`
+        : 'unknown'
+      return { gameId: Number(node.game_id), entryEth, maxPlayers: 6, players, host }
     })
 }
 
