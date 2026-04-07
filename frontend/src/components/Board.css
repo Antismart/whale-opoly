@@ -44,7 +44,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  padding: 5px;
+  padding: 3px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -57,7 +57,7 @@
   border-radius: 8px;
 
   color: #d4e7f5;
-  font-size: clamp(10px, 0.85vw, 12px);
+  font-size: clamp(7px, 0.6vw, 10px);
   text-align: center;
 
   transition: all 180ms ease;
@@ -87,8 +87,9 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
   color: #d4e7f5;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-  letter-spacing: 0.1px;
+  font-size: 0.95em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0;
 }
 
 /* Side-specific label tweaks */
@@ -166,7 +167,7 @@
   top: 0;
   left: 4px;
   right: 4px;
-  height: 14px;
+  height: 8px;
   width: calc(100% - 8px);
   border-radius: 0 0 4px 4px;
 }
@@ -176,7 +177,7 @@
   bottom: 0;
   left: 4px;
   right: 4px;
-  height: 14px;
+  height: 8px;
   width: calc(100% - 8px);
   border-radius: 4px 4px 0 0;
 }
@@ -205,7 +206,7 @@
 
 /* --- Corners — LANDMARK PRESENCE ------------------------------------- */
 .monoTile.corner {
-  font-size: clamp(11px, 1vw, 14px);
+  font-size: clamp(8px, 0.75vw, 11px);
   font-weight: 800;
   color: #f0f8ff;
   justify-content: center;
@@ -437,8 +438,8 @@
 }
 
 .token {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.85);
   transition: transform 200ms ease, box-shadow 200ms ease;
@@ -644,37 +645,37 @@
 /* --- Responsive: Laptops --------------------------------------------- */
 @media (max-width: 1440px) {
   .monoTile {
-    font-size: clamp(8px, 0.7vw, 11px);
-    padding: 4px;
+    font-size: clamp(6px, 0.55vw, 9px);
+    padding: 2px;
   }
 
   .monoTile .label {
     font-size: 0.9em;
-    letter-spacing: 0;
+    margin-top: 2px;
     -webkit-line-clamp: 2;
     line-clamp: 2;
   }
 
   .monoTile.corner {
-    font-size: clamp(9px, 0.8vw, 12px);
+    font-size: clamp(7px, 0.65vw, 10px);
   }
 
-  .monoTile.corner .label {
-    margin-top: 4px;
+  .boardMono {
+    gap: 2px;
   }
 }
 
 @media (max-width: 1024px) {
   .monoTile {
-    font-size: clamp(7px, 0.65vw, 10px);
-    padding: 3px;
+    font-size: clamp(5px, 0.5vw, 8px);
+    padding: 2px;
   }
 
   .monoTile .label {
     font-size: 0.85em;
     -webkit-line-clamp: 1;
     line-clamp: 1;
-    margin-top: 2px;
+    margin-top: 1px;
   }
 
   .monoTile.left .label,
@@ -684,22 +685,27 @@
   }
 
   .monoTile.corner {
-    font-size: clamp(8px, 0.75vw, 11px);
+    font-size: clamp(6px, 0.6vw, 9px);
   }
 
   .boardMono {
     gap: 2px;
-    padding: 6px 6px 62px 6px;
+    padding: 4px 4px 58px 4px;
   }
 
   .diceTray {
-    padding: 8px 16px;
-    gap: 10px;
+    padding: 6px 14px;
+    gap: 8px;
   }
 
   .die {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .pip {
+    width: 7px;
+    height: 7px;
   }
 }
 

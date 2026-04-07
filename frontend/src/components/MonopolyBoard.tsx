@@ -113,8 +113,8 @@ export function MonopolyBoard({
                     background: t.color,
                     boxShadow: `0 0 8px ${t.color}55`,
                     ...(side === 'top' || side === 'bottom'
-                      ? { minHeight: 12 }
-                      : { minWidth: 10 }),
+                      ? { minHeight: 6 }
+                      : { minWidth: 6 }),
                   }}
                 />
               )}
