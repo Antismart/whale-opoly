@@ -69,19 +69,16 @@ function App() {
   // Local game state — the single source of truth for the UI.
   // When Dojo entity subscriptions start returning real data, the
   // useEffect below will sync chain state into this local state.
+  const PLAYER_COLORS = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#a78bfa', '#fb923c'];
   const [game, setGame] = useState({
-    players: [
-      { id: 'P1', name: 'Player 1', color: '#ff6b6b' },
-      { id: 'P2', name: 'Player 2', color: '#4ecdc4' },
-      { id: 'P3', name: 'Player 3', color: '#45b7d1' },
-      { id: 'P4', name: 'Player 4', color: '#f9ca24' },
-    ] as { id: string; name: string; color: string }[],
+    players: [] as { id: string; name: string; color: string }[],
     currentIdx: 0,
-    positions: { P1: 0, P2: 0, P3: 0, P4: 0 } as Record<string, number>,
+    positions: {} as Record<string, number>,
     ownership: {} as Record<number, string | undefined>,
-    balances: { P1: 1500, P2: 1500, P3: 1500, P4: 1500 } as Record<string, number>,
+    balances: {} as Record<string, number>,
     houses: {} as Record<number, number>,
   });
+  const [, setPlayerNames] = useState<Record<string, string>>({});
 
   // Sync from blockchain when Dojo entities become available
   useEffect(() => {
@@ -174,6 +171,21 @@ function App() {
       
       setActionLoading(null);
       toastSuccess('Lobby created on-chain!');
+
+      // Add creator as first player in local game state
+      const creatorId = account.address;
+      setPlayerNames(prev => ({ ...prev, [creatorId]: host }));
+      setGame(prev => {
+        if (prev.players.some(p => p.id === creatorId)) return prev;
+        const color = PLAYER_COLORS[prev.players.length % PLAYER_COLORS.length];
+        return {
+          ...prev,
+          players: [...prev.players, { id: creatorId, name: host, color }],
+          positions: { ...prev.positions, [creatorId]: 0 },
+          balances: { ...prev.balances, [creatorId]: 1500 },
+        };
+      });
+
       // Show success message to user
       log('good', '🎉 Lobby Created Successfully!', `Transaction hash: ${result.transaction_hash?.slice(0, 10)}... | Players: ${maxPlayers} | Entry: ${entryEth} ETH`);
       
@@ -203,10 +215,9 @@ function App() {
     if (!account || !client) { toastError('Connect wallet first'); return null; }
     setActionLoading('joining');
 
-    // Check if user is trying to join their own lobby
-    const lobby = lobbies.find(l => l.gameId === gameId);
-    if (lobby && lobby.host === account.address) {
-      log('warn', '⚠️ Cannot Join Own Lobby', 'You are already the host of this game');
+    // Check if user already in this game
+    if (game.players.some(p => p.id === account.address)) {
+      log('warn', '⚠️ Already in Game', 'You are already a player in this game');
       return null;
     }
     
@@ -223,6 +234,21 @@ function App() {
       await client.game_manager.joinGame(account, gameId);
       setActionLoading(null);
       toastSuccess('Joined game!');
+
+      // Add joiner to local game state
+      const joinerId = account.address;
+      setPlayerNames(prev => ({ ...prev, [joinerId]: username }));
+      setGame(prev => {
+        if (prev.players.some(p => p.id === joinerId)) return prev;
+        const color = PLAYER_COLORS[prev.players.length % PLAYER_COLORS.length];
+        return {
+          ...prev,
+          players: [...prev.players, { id: joinerId, name: username, color }],
+          positions: { ...prev.positions, [joinerId]: 0 },
+          balances: { ...prev.balances, [joinerId]: 1500 },
+        };
+      });
+
       log('good', '🎮 Joined Game!', `Successfully joined lobby #${gameId} as ${username}`);
       return { success: true };
     } catch (error) {
@@ -848,7 +874,16 @@ function App() {
           </section>
         )}
 
-        {section==='play' && (
+        {section==='play' && game.players.length === 0 && (
+          <section className="panel" style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🐋</div>
+            <h2 style={{ margin: '0 0 8px', color: 'var(--text-bright)' }}>No Active Game</h2>
+            <p style={{ color: 'var(--muted)', marginBottom: 16 }}>Create or join a lobby first, then start the game.</p>
+            <button className="btn glow" onClick={() => setSection('onboard')}>Go to Lobby</button>
+          </section>
+        )}
+
+        {section==='play' && game.players.length > 0 && (
           <section className="panel twoCol play">
             <div className="col col-left">
               <div className="panelTitle">
