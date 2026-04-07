@@ -1,5 +1,7 @@
 import { DojoProvider, type DojoCall } from "@dojoengine/core";
-import { Account, AccountInterface, CairoOption, CairoCustomEnum } from "starknet";
+import { CairoOption, CairoCustomEnum } from "starknet";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AccountArg = any;
 // import * as models from "./models.gen";
 import type { BigNumberish } from "./models.gen";
 
@@ -13,7 +15,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_buyProperty = async (snAccount: Account | AccountInterface, gameId: BigNumberish, propertyId: BigNumberish) => {
+	const board_actions_buyProperty = async (snAccount: AccountArg, gameId: BigNumberish, propertyId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -51,7 +53,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_developProperty = async (snAccount: Account | AccountInterface, gameId: BigNumberish, propertyId: BigNumberish) => {
+	const board_actions_developProperty = async (snAccount: AccountArg, gameId: BigNumberish, propertyId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -72,7 +74,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_endTurn = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const board_actions_endTurn = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -127,7 +129,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_mortgageProperty = async (snAccount: Account | AccountInterface, gameId: BigNumberish, propertyId: BigNumberish) => {
+	const board_actions_mortgageProperty = async (snAccount: AccountArg, gameId: BigNumberish, propertyId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -148,7 +150,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_movePlayer = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const board_actions_movePlayer = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -169,7 +171,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_forceSkipTurn = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const board_actions_forceSkipTurn = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -190,7 +192,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_payRent = async (snAccount: Account | AccountInterface, gameId: BigNumberish, propertyId: BigNumberish) => {
+	const board_actions_payRent = async (snAccount: AccountArg, gameId: BigNumberish, propertyId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -211,7 +213,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_rollDice = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const board_actions_rollDice = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -232,7 +234,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_unmortgageProperty = async (snAccount: Account | AccountInterface, gameId: BigNumberish, propertyId: BigNumberish) => {
+	const board_actions_unmortgageProperty = async (snAccount: AccountArg, gameId: BigNumberish, propertyId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -253,7 +255,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const board_actions_payBail = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const board_actions_payBail = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -274,7 +276,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const economics_applyMarketVolatility = async (snAccount: Account | AccountInterface, gameId: BigNumberish, eventType: CairoCustomEnum, magnitude: BigNumberish) => {
+	const economics_applyMarketVolatility = async (snAccount: AccountArg, gameId: BigNumberish, eventType: CairoCustomEnum, magnitude: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -295,7 +297,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const economics_applyUniversalBasicIncome = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const economics_applyUniversalBasicIncome = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -418,7 +420,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const economics_processBankInterest = async (snAccount: Account | AccountInterface, gameId: BigNumberish, player: string) => {
+	const economics_processBankInterest = async (snAccount: AccountArg, gameId: BigNumberish, player: string) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -439,7 +441,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const economics_processSalaryPayment = async (snAccount: Account | AccountInterface, gameId: BigNumberish, player: string) => {
+	const economics_processSalaryPayment = async (snAccount: AccountArg, gameId: BigNumberish, player: string) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -477,7 +479,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const game_manager_createGame = async (snAccount: Account | AccountInterface, tier: CairoCustomEnum, maxPlayers: BigNumberish) => {
+	const game_manager_createGame = async (snAccount: AccountArg, tier: CairoCustomEnum, maxPlayers: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -498,7 +500,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const game_manager_endGame = async (snAccount: Account | AccountInterface, gameId: BigNumberish, winner: CairoOption<string>) => {
+	const game_manager_endGame = async (snAccount: AccountArg, gameId: BigNumberish, winner: CairoOption<string>) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -570,7 +572,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const game_manager_joinGame = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const game_manager_joinGame = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -591,7 +593,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const game_manager_cancelGame = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const game_manager_cancelGame = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -612,7 +614,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const game_manager_startGame = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const game_manager_startGame = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -633,7 +635,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const market_events_applyCompoundEvents = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const market_events_applyCompoundEvents = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -671,7 +673,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const market_events_createEmergencyIntervention = async (snAccount: Account | AccountInterface, gameId: BigNumberish, interventionType: CairoCustomEnum) => {
+	const market_events_createEmergencyIntervention = async (snAccount: AccountArg, gameId: BigNumberish, interventionType: CairoCustomEnum) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -726,7 +728,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const market_events_processScheduledEvents = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const market_events_processScheduledEvents = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -747,7 +749,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const market_events_resolveMarketEvent = async (snAccount: Account | AccountInterface, gameId: BigNumberish, eventId: BigNumberish) => {
+	const market_events_resolveMarketEvent = async (snAccount: AccountArg, gameId: BigNumberish, eventId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -768,7 +770,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const market_events_triggerMarketEvent = async (snAccount: Account | AccountInterface, gameId: BigNumberish, eventType: CairoCustomEnum, magnitude: BigNumberish, targetGroup: CairoOption<CairoCustomEnum>) => {
+	const market_events_triggerMarketEvent = async (snAccount: AccountArg, gameId: BigNumberish, eventType: CairoCustomEnum, magnitude: BigNumberish, targetGroup: CairoOption<CairoCustomEnum>) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -789,7 +791,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const property_management_auctionProperty = async (snAccount: Account | AccountInterface, gameId: BigNumberish, propertyId: BigNumberish, startingBid: BigNumberish) => {
+	const property_management_auctionProperty = async (snAccount: AccountArg, gameId: BigNumberish, propertyId: BigNumberish, startingBid: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -827,7 +829,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const property_management_finalizeAuction = async (snAccount: Account | AccountInterface, gameId: BigNumberish, propertyId: BigNumberish) => {
+	const property_management_finalizeAuction = async (snAccount: AccountArg, gameId: BigNumberish, propertyId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -848,7 +850,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const property_management_forceSale = async (snAccount: Account | AccountInterface, gameId: BigNumberish, player: string) => {
+	const property_management_forceSale = async (snAccount: AccountArg, gameId: BigNumberish, player: string) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -920,7 +922,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const property_management_initializeProperties = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const property_management_initializeProperties = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -941,7 +943,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const property_management_placeBid = async (snAccount: Account | AccountInterface, gameId: BigNumberish, propertyId: BigNumberish, bidAmount: BigNumberish) => {
+	const property_management_placeBid = async (snAccount: AccountArg, gameId: BigNumberish, propertyId: BigNumberish, bidAmount: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -962,7 +964,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const property_management_transferProperty = async (snAccount: Account | AccountInterface, gameId: BigNumberish, propertyId: BigNumberish, toPlayer: string, price: BigNumberish) => {
+	const property_management_transferProperty = async (snAccount: AccountArg, gameId: BigNumberish, propertyId: BigNumberish, toPlayer: string, price: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -983,7 +985,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const random_engine_commitRandomness = async (snAccount: Account | AccountInterface, gameId: BigNumberish, round: BigNumberish, commitment: BigNumberish) => {
+	const random_engine_commitRandomness = async (snAccount: AccountArg, gameId: BigNumberish, round: BigNumberish, commitment: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1004,7 +1006,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const random_engine_generateCardDraw = async (snAccount: Account | AccountInterface, gameId: BigNumberish, deckType: CairoCustomEnum) => {
+	const random_engine_generateCardDraw = async (snAccount: AccountArg, gameId: BigNumberish, deckType: CairoCustomEnum) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1025,7 +1027,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const random_engine_generateDiceRoll = async (snAccount: Account | AccountInterface, gameId: BigNumberish, player: string) => {
+	const random_engine_generateDiceRoll = async (snAccount: AccountArg, gameId: BigNumberish, player: string) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1046,7 +1048,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const random_engine_generateMarketEvent = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const random_engine_generateMarketEvent = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1084,7 +1086,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const random_engine_initializeGameRandomness = async (snAccount: Account | AccountInterface, gameId: BigNumberish, players: Array<string>) => {
+	const random_engine_initializeGameRandomness = async (snAccount: AccountArg, gameId: BigNumberish, players: Array<string>) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1122,7 +1124,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const random_engine_revealRandomness = async (snAccount: Account | AccountInterface, gameId: BigNumberish, round: BigNumberish, nonce: BigNumberish) => {
+	const random_engine_revealRandomness = async (snAccount: AccountArg, gameId: BigNumberish, round: BigNumberish, nonce: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1160,7 +1162,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const security_simple_initializeSecurity = async (snAccount: Account | AccountInterface, gameId: BigNumberish) => {
+	const security_simple_initializeSecurity = async (snAccount: AccountArg, gameId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1181,7 +1183,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const security_simple_validateAction = async (snAccount: Account | AccountInterface, gameId: BigNumberish, player: string, action: BigNumberish) => {
+	const security_simple_validateAction = async (snAccount: AccountArg, gameId: BigNumberish, player: string, action: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1202,7 +1204,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const treasury_approveWithdrawal = async (snAccount: Account | AccountInterface, requestId: BigNumberish) => {
+	const treasury_approveWithdrawal = async (snAccount: AccountArg, requestId: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1240,7 +1242,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const treasury_depositFunds = async (snAccount: Account | AccountInterface, amount: BigNumberish, balanceType: CairoCustomEnum) => {
+	const treasury_depositFunds = async (snAccount: AccountArg, amount: BigNumberish, balanceType: CairoCustomEnum) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1261,7 +1263,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const treasury_emergencyPause = async (snAccount: Account | AccountInterface, balanceType: CairoCustomEnum) => {
+	const treasury_emergencyPause = async (snAccount: AccountArg, balanceType: CairoCustomEnum) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1282,7 +1284,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const treasury_emergencyResume = async (snAccount: Account | AccountInterface, balanceType: CairoCustomEnum) => {
+	const treasury_emergencyResume = async (snAccount: AccountArg, balanceType: CairoCustomEnum) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1354,7 +1356,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const treasury_requestLargeWithdrawal = async (snAccount: Account | AccountInterface, balanceType: CairoCustomEnum, amount: BigNumberish, recipient: string) => {
+	const treasury_requestLargeWithdrawal = async (snAccount: AccountArg, balanceType: CairoCustomEnum, amount: BigNumberish, recipient: string) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1375,7 +1377,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const treasury_setDailyLimit = async (snAccount: Account | AccountInterface, balanceType: CairoCustomEnum, newLimit: BigNumberish) => {
+	const treasury_setDailyLimit = async (snAccount: AccountArg, balanceType: CairoCustomEnum, newLimit: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1396,7 +1398,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const treasury_transferBetweenWallets = async (snAccount: Account | AccountInterface, fromType: CairoCustomEnum, toType: CairoCustomEnum, amount: BigNumberish) => {
+	const treasury_transferBetweenWallets = async (snAccount: AccountArg, fromType: CairoCustomEnum, toType: CairoCustomEnum, amount: BigNumberish) => {
 		try {
 			return await provider.execute(
 				snAccount,
@@ -1417,7 +1419,7 @@ export function setupWorld(provider: DojoProvider) {
 		};
 	};
 
-	const treasury_withdrawFunds = async (snAccount: Account | AccountInterface, amount: BigNumberish, balanceType: CairoCustomEnum, recipient: string) => {
+	const treasury_withdrawFunds = async (snAccount: AccountArg, amount: BigNumberish, balanceType: CairoCustomEnum, recipient: string) => {
 		try {
 			return await provider.execute(
 				snAccount,
