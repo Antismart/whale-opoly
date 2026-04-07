@@ -78,7 +78,6 @@ function App() {
     balances: {} as Record<string, number>,
     houses: {} as Record<number, number>,
   });
-  const [, setPlayerNames] = useState<Record<string, string>>({});
 
   // Sync from blockchain when Dojo entities become available
   useEffect(() => {
@@ -174,7 +173,6 @@ function App() {
 
       // Add creator as first player in local game state
       const creatorId = account.address;
-      setPlayerNames(prev => ({ ...prev, [creatorId]: host }));
       setGame(prev => {
         if (prev.players.some(p => p.id === creatorId)) return prev;
         const color = PLAYER_COLORS[prev.players.length % PLAYER_COLORS.length];
@@ -237,7 +235,6 @@ function App() {
 
       // Add joiner to local game state
       const joinerId = account.address;
-      setPlayerNames(prev => ({ ...prev, [joinerId]: username }));
       setGame(prev => {
         if (prev.players.some(p => p.id === joinerId)) return prev;
         const color = PLAYER_COLORS[prev.players.length % PLAYER_COLORS.length];
@@ -360,7 +357,7 @@ function App() {
   useEffect(() => {
     const interval = setInterval(refreshLobbies, 30000);
     return () => clearInterval(interval);
-  }, [blockchainLobbies]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update local game state — all game logic flows through this function.
   const updateGame = (updater: (prev: typeof game) => typeof game) => {
@@ -419,6 +416,7 @@ function App() {
     { id:'h12', deck:'chest', title:'Move forward 1', text:'Advance 1 tile', action:{ kind:'move_rel', delta:1 } },
   ]))
   const [jailPasses, setJailPasses] = useState<Record<string, number>>({})
+  const [lastCreditor, setLastCreditor] = useState<string | null>(null)
 
 
   // Prices
@@ -485,22 +483,40 @@ function App() {
     if (balance < 0) {
       log('warn', 'BANKRUPT!', `${game.players.find(p => p.id === playerId)?.name || playerId} is bankrupt and eliminated!`);
       // Mark player as bankrupt by removing from active players
-      updateGame(g => ({
-        ...g,
-        players: g.players.filter(p => p.id !== playerId),
-        // Transfer their properties back to unowned
-        ownership: Object.fromEntries(
-          Object.entries(g.ownership).map(([tid, owner]) =>
-            [tid, owner === playerId ? undefined : owner]
-          )
-        ),
-        // Remove their houses
-        houses: Object.fromEntries(
-          Object.entries(g.houses).map(([tid, count]) =>
-            [tid, g.ownership[Number(tid)] === playerId ? 0 : count]
-          )
-        ),
-      }));
+      updateGame(g => {
+        const removedIdx = g.players.findIndex(p => p.id === playerId);
+        const newPlayers = g.players.filter(p => p.id !== playerId);
+
+        // Adjust currentIdx if the removed player was before or at current turn
+        let newIdx = g.currentIdx;
+        if (newPlayers.length === 0) {
+          newIdx = 0;
+        } else if (removedIdx < g.currentIdx) {
+          newIdx = g.currentIdx - 1;
+        } else if (removedIdx === g.currentIdx) {
+          // Current player went bankrupt — keep same index (it now points to next player)
+          // But wrap around if at end
+          newIdx = g.currentIdx % newPlayers.length;
+        }
+        // Ensure in bounds
+        if (newIdx >= newPlayers.length) newIdx = 0;
+
+        return {
+          ...g,
+          players: newPlayers,
+          currentIdx: newIdx,
+          ownership: Object.fromEntries(
+            Object.entries(g.ownership).map(([tid, propOwner]) =>
+              [tid, propOwner === playerId ? (lastCreditor || undefined) : propOwner]
+            )
+          ),
+          houses: Object.fromEntries(
+            Object.entries(g.houses).map(([tid, count]) =>
+              [tid, g.ownership[Number(tid)] === playerId ? 0 : count]
+            )
+          ),
+        };
+      });
 
       // Check if game is over (1 player left)
       const remainingPlayers = game.players.filter(p => p.id !== playerId);
@@ -510,8 +526,21 @@ function App() {
     }
   }
 
-  function moveAndResolve(steps:number){
-    const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)>0){ log('warn',`${cur.name} is in Jail`,'Pay bail or use pass'); return }
+  function moveAndResolve(steps:number, diceA?:number, diceB?:number){
+    const cur=game.players[game.currentIdx]; if(!cur) return;
+    if((inJail[cur.id]||0)>0){
+      // In jail — check if player rolled doubles to escape
+      if(diceA !== undefined && diceB !== undefined && diceA === diceB) {
+        // Doubles! Escape jail and move
+        setInJail(j=>({...j,[cur.id]:0}));
+        setDoublesCount(0); // Reset doubles — no extra turn from jail escape
+        log('good',`${cur.name} rolled doubles!`,'Escaped from Jail!');
+        // Continue with normal movement below (don't return)
+      } else {
+        log('warn',`${cur.name} is in Jail`,`No doubles — ${inJail[cur.id]} turn${(inJail[cur.id]||0)>1?'s':''} left. Pay bail or use pass.`);
+        return;
+      }
+    }
     const from=game.positions[cur.id] || 0; const to=(from+steps)%40; const passGo=from+steps>=40
     updateGame(g=>({...g, positions:{...g.positions,[cur.id]:to}, balances: passGo?{...g.balances,[cur.id]:(g.balances[cur.id]||0)+200}:g.balances }))
     if(passGo) log('good',`${cur.name} passed Start`,'+$200')
@@ -519,7 +548,13 @@ function App() {
     const tile=monoTiles[to]; if(!tile) return
     if(tile.kind==='chance'){ drawCard('chance'); return }
     if(tile.kind==='chest'){ drawCard('chest'); return }
-    if(tile.kind==='tax'){ updateGame(g=>({...g, balances:{...g.balances,[cur.id]:g.balances[cur.id]-100}})); log('warn',`${cur.name} paid Tax`,'-$100'); setTimeout(() => checkBankruptcy(cur.id), 100); return }
+    if(tile.kind==='tax'){
+      const taxAmount = to === 38 ? 75 : 200; // Tile 38 = Luxury Tax ($75), Tile 4 = Income Tax ($200)
+      updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-taxAmount}}));
+      log('warn',`${cur.name} paid ${tile.label}`,`-$${taxAmount}`);
+      setTimeout(() => checkBankruptcy(cur.id), 100);
+      return;
+    }
     if(tile.kind==='gotojail'){ updateGame(g=>({...g, positions:{...g.positions,[cur.id]:10}})); setInJail(j=>({...j,[cur.id]:3})); setSelected(10); log('warn',`${cur.name} went to Jail`,'3 turns or $50'); return }
     if(['property','rail','utility'].includes(tile.kind)){
       const owner=game.ownership[to]; if(owner && owner!==cur.id && !mortgages[to]){
@@ -530,6 +565,12 @@ function App() {
         if([5,15,25,35].includes(to)){ const count=[5,15,25,35].filter(r=>game.ownership[r]===owner).length; rent=[0,25,50,100,200][count] }
         if([12,28].includes(to)){ const count=[12,28].filter(u=>game.ownership[u]===owner).length; rent=(count===2?10:4)*Math.max(2,lastRoll||7) }
         updateGame(g=>({...g, balances:{...g.balances, [cur.id]:g.balances[cur.id]-rent, [owner]:(g.balances[owner]||0)+rent }}))
+        if (account && client && currentGameId) {
+          client.board_actions.payRent(account, currentGameId, to).catch((err: unknown) => {
+            console.error('Pay rent contract call failed:', err);
+          });
+        }
+        setLastCreditor(owner);
         log('info',`${cur.name} paid rent`, `-$${rent} to ${owner}`)
       }
     }
@@ -561,13 +602,14 @@ function App() {
     }
 
     setRolling(false);
-    moveAndResolve(dice1 + dice2);
+    moveAndResolve(dice1 + dice2, dice1, dice2);
   }
 
   async function rollDice(){
     if(rolling||openCard) return;
     if(!isMyTurn) { toastError("Not your turn!"); return; }
     setRolling(true);
+    setLastCreditor(null);
 
     try {
       // Use real Dojo contract for dice roll
@@ -594,6 +636,7 @@ function App() {
     const r2=1+Math.floor(Math.random()*6);
     setTimeout(() => handleDoublesAndMove(r1, r2), 420);
   }
+
   function isCurrentPlayer() { return !!account && game.players[game.currentIdx]?.id === account.address; }
 
   async function buyProperty(id:number){
@@ -663,7 +706,23 @@ function App() {
 
     if (account && client && currentGameId) { try { await client.board_actions.endTurn(account, currentGameId); } catch (error) { console.error('End turn contract call failed:', error); toastError('Action may not sync to blockchain'); } }
     updateGame(g=>({...g, currentIdx:(g.currentIdx+1)%g.players.length }));
-    setInJail(j=>{ const n={...j}; Object.keys(n).forEach(k=>{ if(n[k]>0) n[k]-=1 }); return n });
+    setInJail(j => {
+      const n = {...j};
+      Object.keys(n).forEach(k => {
+        if(n[k] > 0) {
+          n[k] -= 1;
+          if(n[k] === 0) {
+            // Released from jail — force $50 bail payment
+            updateGame(g => ({
+              ...g,
+              balances: { ...g.balances, [k]: (g.balances[k] || 0) - 50 }
+            }));
+            log('warn', 'Jail Time Served', `${game.players.find(p=>p.id===k)?.name || k} released — forced $50 bail`);
+          }
+        }
+      });
+      return n;
+    });
   }
 
   // Derived
@@ -920,6 +979,7 @@ function App() {
                 rolling={rolling}
                 onRoll={rollDice}
                 mortgages={mortgages}
+                currentPlayerIdx={game.currentIdx}
               />
             </div>
             <div className="col col-right">
