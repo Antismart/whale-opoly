@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Lobby } from '../types'
 import { BoardIcon } from './Icons'
 
-export function OnboardPanel({ lobbies, onCreate, onJoin, onStart, actionLoading }:{ lobbies: Lobby[]; onCreate: (maxPlayers: number, host: string, entryEth: string)=>Promise<void>; onJoin: (gameId: number, username: string)=>Promise<void>; onStart?: (gameId: number)=>Promise<void>; actionLoading?: string | null }) {
+export function OnboardPanel({ lobbies, onCreate, onJoin, onStart, onCancel, actionLoading }:{ lobbies: Lobby[]; onCreate: (maxPlayers: number, host: string, entryEth: string)=>Promise<void>; onJoin: (gameId: number, username: string)=>Promise<void>; onStart?: (gameId: number)=>Promise<void>; onCancel?: (gameId: number)=>Promise<void>; actionLoading?: string | null }) {
   const [maxPlayers, setMaxPlayers] = useState(4)
   const [username, setUsername] = useState('')
   const [entryEth, setEntryEth] = useState('0.10')
@@ -46,6 +46,9 @@ export function OnboardPanel({ lobbies, onCreate, onJoin, onStart, actionLoading
                 <button className="btn glow" disabled={actionLoading === 'starting'} onClick={()=>onStart(l.gameId)}>
                   {actionLoading === 'starting' ? 'Starting...' : 'Start'}
                 </button>
+              )}
+              {onCancel && (
+                <button className="btn ghost small" onClick={() => onCancel(l.gameId)}>Cancel</button>
               )}
             </div>
           </div>
