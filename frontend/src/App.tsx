@@ -30,7 +30,6 @@ function App() {
   const [nextGameId, setNextGameId] = useState(1);
   
   // Subscribe to game states using official SDK
-  // Note: Returns empty results while torii-wasm is stubbed (see src/torii-wasm-stub.ts)
   useEntityQuery(
     new ToriiQueryBuilder()
       .withClause(MemberClause("whale_opoly-GameState", "status", "Eq", "Active").build())
@@ -58,13 +57,13 @@ function App() {
       .includeHashedKeys()
   );
 
-  // Get data from Dojo Zustand store (returns empty while torii-wasm is stubbed)
+  // Get data from Dojo Zustand store
   const gameStates = useModels("whale_opoly-GameState");
   const playerPositions = useModels("whale_opoly-PlayerPosition");
   const gameCurrencies = useModels("whale_opoly-GameCurrency");
   const properties = useModels("whale_opoly-Property");
 
-  // Extract game data from Dojo entities (empty until torii-wasm works)
+  // Extract game data from Dojo entities
   const gameEntities = Object.values(gameStates);
 
   // Local game state — the single source of truth for the UI.
@@ -356,6 +355,8 @@ function App() {
   const [mortgages, setMortgages] = useState<Record<number, boolean>>({})
   const [inJail, setInJail] = useState<Record<string, number>>({})
   const [lastRoll, setLastRoll] = useState(0)
+  const [doublesCount, setDoublesCount] = useState(0)
+  const [turnCount, setTurnCount] = useState(0)
   const [tradeOpen, setTradeOpen] = useState(false)
   const [tradeOffer, setTradeOffer] = useState<{ toPlayer: string; propertyId: number; price: number } | null>(null)
   const [auctionOpen, setAuctionOpen] = useState(false)
@@ -496,7 +497,10 @@ function App() {
     if(tile.kind==='gotojail'){ updateGame(g=>({...g, positions:{...g.positions,[cur.id]:10}})); setInJail(j=>({...j,[cur.id]:3})); setSelected(10); log('warn',`${cur.name} went to Jail`,'3 turns or $50'); return }
     if(['property','rail','utility'].includes(tile.kind)){
       const owner=game.ownership[to]; if(owner && owner!==cur.id && !mortgages[to]){
-        let rent=Math.max(10,Math.floor((price[to]||100)*0.1)) + (game.houses[to]||0)*10
+        const baseRent = Math.max(10, Math.floor((price[to]||100) * 0.1));
+        const houseCount = game.houses[to] || 0;
+        const multipliers = [1, 5, 15, 45, 62, 75];
+        let rent = baseRent * (multipliers[houseCount] || 1);
         if([5,15,25,35].includes(to)){ const count=[5,15,25,35].filter(r=>game.ownership[r]===owner).length; rent=[0,25,50,100,200][count] }
         if([12,28].includes(to)){ const count=[12,28].filter(u=>game.ownership[u]===owner).length; rent=(count===2?10:4)*Math.max(2,lastRoll||7) }
         updateGame(g=>({...g, balances:{...g.balances, [cur.id]:g.balances[cur.id]-rent, [owner]:(g.balances[owner]||0)+rent }}))
@@ -506,10 +510,38 @@ function App() {
     // Check for bankruptcy after all deductions
     setTimeout(() => checkBankruptcy(cur.id), 100);
   }
-  async function rollDice(){ 
-    if(rolling||openCard) return; 
-    setRolling(true); 
-    
+  function handleDoublesAndMove(dice1: number, dice2: number) {
+    setD1(dice1);
+    setD2(dice2);
+    setLastRoll(dice1 + dice2);
+
+    const isDoubles = dice1 === dice2;
+    if (isDoubles) {
+      const newCount = doublesCount + 1;
+      setDoublesCount(newCount);
+      if (newCount >= 3) {
+        // Three doubles = jail
+        setDoublesCount(0);
+        updateGame(g => ({...g, positions: {...g.positions, [game.players[game.currentIdx].id]: 10}}));
+        setInJail(j => ({...j, [game.players[game.currentIdx].id]: 3}));
+        setSelected(10);
+        log('warn', 'Three Doubles!', `${game.players[game.currentIdx].name} rolled doubles 3 times — sent to Jail!`);
+        setRolling(false);
+        return;
+      }
+      log('info', 'Doubles!', `${game.players[game.currentIdx].name} rolled doubles — gets another turn!`);
+    } else {
+      setDoublesCount(0);
+    }
+
+    setRolling(false);
+    moveAndResolve(dice1 + dice2);
+  }
+
+  async function rollDice(){
+    if(rolling||openCard) return;
+    setRolling(true);
+
     try {
       // Use real Dojo contract for dice roll
       const dojoResult = await rollDiceAction();
@@ -523,29 +555,17 @@ function App() {
             toastError('Action may not sync to blockchain');
           }
         }
-        setTimeout(()=>{
-          setD1(dojoResult.dice1);
-          setD2(dojoResult.dice2);
-          setLastRoll(dojoResult.dice1+dojoResult.dice2);
-          setRolling(false);
-          moveAndResolve(dojoResult.dice1+dojoResult.dice2)
-        }, 420);
+        setTimeout(() => handleDoublesAndMove(dojoResult.dice1, dojoResult.dice2), 420);
         return;
       }
     } catch (error) {
       console.error('Dojo dice roll failed:', error);
     }
-    
+
     // Fallback to local dice roll if contract call fails
-    const r1=1+Math.floor(Math.random()*6); 
-    const r2=1+Math.floor(Math.random()*6); 
-    setTimeout(()=>{ 
-      setD1(r1); 
-      setD2(r2); 
-      setLastRoll(r1+r2); 
-      setRolling(false); 
-      moveAndResolve(r1+r2) 
-    },420);
+    const r1=1+Math.floor(Math.random()*6);
+    const r2=1+Math.floor(Math.random()*6);
+    setTimeout(() => handleDoublesAndMove(r1, r2), 420);
   }
   async function buyProperty(id:number){ 
     const t=monoTiles[id]; 
@@ -586,7 +606,34 @@ function App() {
   async function mortgageProperty(id:number){ if(mortgages[id]) return log('warn','Already mortgaged',''); const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); const val=Math.floor((price[id]||0)/2); if (account && client && currentGameId) { try { await client.board_actions.mortgageProperty(account, currentGameId, id); } catch (error) { console.error('Mortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>({...m,[id]:true})); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)+val}})); log('info','Mortgaged',`+$${val}`) }
   async function unmortgageProperty(id:number){ if(!mortgages[id]) return; const cur=game.players[game.currentIdx]; if(!cur) return; const val=Math.floor((price[id]||0)/2)*1.1; if((game.balances[cur.id]||0)<val) return log('warn','Need funds',`$${val}`); if (account && client && currentGameId) { try { await client.board_actions.unmortgageProperty(account, currentGameId, id); } catch (error) { console.error('Unmortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>{const n={...m}; delete n[id]; return n}); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-val}})); log('info','Unmortgaged',`-$${val}`) }
   async function payBail(){ const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((game.balances[cur.id]||0)<50) return log('warn','Need $50',''); if (account && client && currentGameId) { try { await client.board_actions.payBail(account, currentGameId); } catch (error) { console.error('Pay bail contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-50}})); setInJail(j=>({...j,[cur.id]:0})); log('good','Bail paid','Freed') }
-  async function endTurn(){ if(openCard) return log('warn','Resolve card','Apply first'); if (account && client && currentGameId) { try { await client.board_actions.endTurn(account, currentGameId); } catch (error) { console.error('End turn contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, currentIdx:(g.currentIdx+1)%g.players.length })); setInJail(j=>{ const n={...j}; Object.keys(n).forEach(k=>{ if(n[k]>0) n[k]-=1 }); return n }) }
+  async function endTurn(){
+    if(openCard) return log('warn','Resolve card','Apply first');
+
+    // If player rolled doubles, don't advance turn (they go again)
+    if (doublesCount > 0 && !openCard) {
+      log('info', 'Extra Turn', `${curPlayer.name} gets another roll from doubles`);
+      return; // Don't advance — player rolls again
+    }
+    setDoublesCount(0);
+
+    // Turn limit check
+    const newTurnCount = turnCount + 1;
+    setTurnCount(newTurnCount);
+
+    if (newTurnCount >= 100) {
+      // Game over — highest balance wins
+      const winner = [...game.players].sort((a, b) => (game.balances[b.id] || 0) - (game.balances[a.id] || 0))[0];
+      if (winner) {
+        handleGameOver(winner);
+        log('warn', 'Turn Limit!', `100 turns reached — ${winner.name} wins by highest balance!`);
+        return;
+      }
+    }
+
+    if (account && client && currentGameId) { try { await client.board_actions.endTurn(account, currentGameId); } catch (error) { console.error('End turn contract call failed:', error); toastError('Action may not sync to blockchain'); } }
+    updateGame(g=>({...g, currentIdx:(g.currentIdx+1)%g.players.length }));
+    setInJail(j=>{ const n={...j}; Object.keys(n).forEach(k=>{ if(n[k]>0) n[k]-=1 }); return n });
+  }
 
   // Derived
   const curPlayer = game.players[game.currentIdx] || { id: '', name: 'Unknown', color: '#666' }
@@ -697,6 +744,18 @@ function App() {
                 } catch (error) {
                   console.error('Failed to start game:', error);
                   log('warn','Start failed', 'Check connection');
+                }
+              }}
+              onCancel={async (gameId) => {
+                if (!account || !client) return;
+                try {
+                  await client.game_manager.cancelGame(account, gameId);
+                  toastSuccess('Lobby cancelled');
+                  setLocalLobbies(prev => prev.filter(l => l.gameId !== gameId));
+                  log('info', 'Lobby Cancelled', `Game #${gameId} cancelled and refunded`);
+                } catch (error) {
+                  console.error('Cancel game failed:', error);
+                  toastError('Failed to cancel — only the creator can cancel');
                 }
               }}
               actionLoading={actionLoading}
@@ -839,6 +898,26 @@ function App() {
                 }}
                 balances={game.balances}
               />
+              {/* Force skip if opponent is taking too long */}
+              {account && game.players[game.currentIdx]?.id !== account.address && (
+                <button
+                  className="btn outline small"
+                  style={{ marginTop: 8 }}
+                  onClick={async () => {
+                    if (!client || !currentGameId) return;
+                    try {
+                      await client.board_actions.forceSkipTurn(account, currentGameId);
+                      toastSuccess('Turn skipped!');
+                      log('info', 'Turn Skipped', 'Timed-out player was skipped');
+                    } catch (error) {
+                      console.error('Force skip failed:', error);
+                      toastError('Cannot skip yet — turn may not be timed out');
+                    }
+                  }}
+                >
+                  Force Skip Turn (timeout)
+                </button>
+              )}
               <div className="panelTitle" style={{ marginTop: 16 }}>
                 <span className="icon" aria-hidden>{EventIcon}</span>
                 Tile details
