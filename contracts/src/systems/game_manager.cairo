@@ -539,6 +539,17 @@ pub mod game_manager {
             let mut world = self.world_default();
             if players.len() == 0 { return (); }
 
+            // Sync balances from GameCurrency to PlayerGameState for final standings
+            let mut sync_i: u32 = 0;
+            while sync_i < players.len() {
+                let addr = *players.at(sync_i);
+                let currency: GameCurrency = world.read_model((game_id, addr));
+                let mut pgs: PlayerGameState = world.read_model((addr, game_id));
+                pgs.balance = currency.balance;
+                world.write_model(@pgs);
+                sync_i += 1;
+            };
+
             // Split pool: Winner 60%, Runner-up 25%, Third 10%, Platform 3%, Insurance 2%
             let winner_amt: u256 = (total_pool * 60_u256) / 100_u256;
             let runner_amt: u256 = (total_pool * 25_u256) / 100_u256;
@@ -555,8 +566,8 @@ pub mod game_manager {
                 let mut best_addr: ContractAddress = *players.at(0);
                 while i < players.len() {
                     let addr = *players.at(i);
-                    let pstate: PlayerGameState = world.read_model((addr, game_id));
-                    if pstate.balance > best_balance { best_balance = pstate.balance; best_addr = addr; }
+                    let pcurrency: GameCurrency = world.read_model((game_id, addr));
+                    if pcurrency.balance > best_balance { best_balance = pcurrency.balance; best_addr = addr; }
                     i += 1;
                 };
                 winner_addr_opt = Option::Some(best_addr);
@@ -574,8 +585,8 @@ pub mod game_manager {
             while i < players.len() {
                 let addr = *players.at(i);
                 if addr != winner_addr {
-                    let pstate: PlayerGameState = world.read_model((addr, game_id));
-                    if pstate.balance > best2_balance { best2_balance = pstate.balance; best2_addr = addr; }
+                    let pcurrency: GameCurrency = world.read_model((game_id, addr));
+                    if pcurrency.balance > best2_balance { best2_balance = pcurrency.balance; best2_addr = addr; }
                 }
                 i += 1;
             };
@@ -588,8 +599,8 @@ pub mod game_manager {
             while i2 < players.len() {
                 let addr = *players.at(i2);
                 if addr != winner_addr && (runner_addr_opt.is_none() || addr != runner_addr_opt.unwrap()) {
-                    let pstate: PlayerGameState = world.read_model((addr, game_id));
-                    if pstate.balance > best3_balance { best3_balance = pstate.balance; best3_addr = addr; }
+                    let pcurrency: GameCurrency = world.read_model((game_id, addr));
+                    if pcurrency.balance > best3_balance { best3_balance = pcurrency.balance; best3_addr = addr; }
                 }
                 i2 += 1;
             };
