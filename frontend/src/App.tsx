@@ -13,6 +13,7 @@ import { TileDetails } from './components/TileDetails'
 import { ActionBar } from './components/ActionBar'
 import { OnboardPanel } from './components/OnboardPanel'
 import { DiceIcon, BoardIcon, EventIcon } from './components/Icons'
+import { GameManual } from './components/GameManual'
 import { monoTiles } from './data/boardTiles'
 import type { Lobby, Card } from './types'
 
@@ -346,7 +347,7 @@ function App() {
   const [actionLoading, setActionLoading] = useState<string | null>(null) // 'creating' | 'joining' | 'rolling' | 'buying' | null
 
   // --- Core state ---
-  const [section, setSection] = useState<'onboard'|'dashboard'|'play'>('onboard')
+  const [section, setSection] = useState<'onboard'|'dashboard'|'play'|'manual'>('onboard')
   const [selected, setSelected] = useState(0)
   const [d1, setD1] = useState(1)
   const [d2, setD2] = useState(1)
@@ -619,6 +620,10 @@ function App() {
             <span className="icon" aria-hidden>{BoardIcon}</span>
             <span>Play</span>
           </button>
+          <button className={`navItem ${section==='manual'?'active':''}`} onClick={()=>setSection('manual')}>
+            <span className="icon" aria-hidden>{EventIcon}</span>
+            <span>Manual</span>
+          </button>
         </nav>
         <div className="sideFooter">
           <div className="chip">Starknet Testnet</div>
@@ -628,7 +633,7 @@ function App() {
       <main className="content">
         <header className="topbar">
           <div className="crumbs">
-            <span className="crumb">{section === 'onboard' ? 'Lobby' : section === 'play' ? 'Game Board' : 'Harbor'}</span>
+            <span className="crumb">{section === 'onboard' ? 'Lobby' : section === 'play' ? 'Game Board' : section === 'manual' ? 'Game Manual' : 'Harbor'}</span>
           </div>
           <div className="actions">
             <WalletButton />
@@ -857,6 +862,12 @@ function App() {
                 ))}
               </div>
             </div>
+          </section>
+        )}
+
+        {section==='manual' && (
+          <section className="panel">
+            <GameManual />
           </section>
         )}
 

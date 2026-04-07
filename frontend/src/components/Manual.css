@@ -1,0 +1,125 @@
+.manual {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  min-height: 400px;
+}
+
+.manual-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 100px;
+  align-self: start;
+}
+
+.manual-nav-item {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.manual-nav-item:hover {
+  background: rgba(14, 165, 233, 0.04);
+  color: var(--text);
+}
+
+.manual-nav-item.active {
+  background: rgba(14, 165, 233, 0.08);
+  border-color: rgba(14, 165, 233, 0.2);
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+.manual-content {
+  padding: 0 8px;
+}
+
+.manual-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(14, 165, 233, 0.12);
+}
+
+.manual-subtitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 20px 0 8px;
+}
+
+.manual-para {
+  color: var(--text);
+  line-height: 1.65;
+  margin: 6px 0;
+  font-size: 14px;
+}
+
+.manual-bullet {
+  color: var(--text);
+  padding-left: 8px;
+  margin: 4px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.manual-step {
+  color: var(--text);
+  padding-left: 4px;
+  margin: 6px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.manual-table-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(14, 165, 233, 0.08);
+  font-size: 14px;
+}
+
+.manual-table-row.header {
+  font-weight: 700;
+  color: var(--text-bright);
+  border-bottom: 1px solid rgba(14, 165, 233, 0.2);
+}
+
+.manual-table-cell {
+  color: var(--text);
+}
+
+.manual-body strong {
+  color: var(--text-bright);
+}
+
+@media (max-width: 768px) {
+  .manual {
+    grid-template-columns: 1fr;
+  }
+  .manual-nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(14, 165, 233, 0.08);
+  }
+  .manual-nav-item {
+    white-space: nowrap;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+}
