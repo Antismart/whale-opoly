@@ -358,6 +358,8 @@ function App() {
   const [lastRoll, setLastRoll] = useState(0)
   const [tradeOpen, setTradeOpen] = useState(false)
   const [tradeOffer, setTradeOffer] = useState<{ toPlayer: string; propertyId: number; price: number } | null>(null)
+  const [auctionOpen, setAuctionOpen] = useState(false)
+  const [auctionBid, setAuctionBid] = useState(0)
   // lobbies come from blockchain entities merged with local optimistic state
   const [gameOver, setGameOver] = useState<{ winner: typeof game.players[0] } | null>(null);
   const [openCard, setOpenCard] = useState<Card | undefined>()
@@ -830,7 +832,11 @@ function App() {
                 inJailTurns={inJail[curPlayer.id]||0}
                 onPayBail={payBail}
                 onTrade={() => setTradeOpen(true)}
-                onAuction={() => toastInfo('Auctions coming soon!')}
+                onAuction={() => {
+                  if (!canBuy) { toastInfo('Select an unowned property to auction'); return; }
+                  setAuctionOpen(true);
+                  setAuctionBid(Math.floor((price[selected] || 100) / 2));
+                }}
                 balances={game.balances}
               />
               <div className="panelTitle" style={{ marginTop: 16 }}>
@@ -1027,6 +1033,61 @@ function App() {
                 }}
               >
                 Execute Trade
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auction dialog */}
+      {auctionOpen && (
+        <div className="cardModal" role="dialog" aria-modal="true">
+          <div className="cardPanel">
+            <div className="cardHeader">
+              <span className="deckTag chance">Auction</span>
+              <button className="closeBtn" onClick={() => setAuctionOpen(false)} aria-label="Close">&times;</button>
+            </div>
+            <div className="cardTitle">Auction: {monoTiles[selected]?.label || `Tile ${selected}`}</div>
+            <div className="cardBody">
+              <p style={{ color: 'var(--muted)', marginBottom: 12 }}>
+                Starting price: ${price[selected] || 0}. Place your bid below.
+              </p>
+              <div className="field" style={{ marginBottom: 12 }}>
+                <label>Your bid ($):</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={auctionBid}
+                  onChange={(e) => setAuctionBid(Number(e.target.value))}
+                />
+              </div>
+            </div>
+            <div className="cardActions">
+              <button className="btn ghost" onClick={() => setAuctionOpen(false)}>Cancel</button>
+              <button
+                className="btn glow"
+                disabled={auctionBid <= 0 || auctionBid > (game.balances[curPlayer.id] || 0)}
+                onClick={async () => {
+                  if (account && client && currentGameId) {
+                    try {
+                      await client.property_management.auctionProperty(account, currentGameId, selected, auctionBid);
+                      toastSuccess('Auction started!');
+                    } catch (error) {
+                      console.error('Auction contract call failed:', error);
+                      toastError('Auction may not sync to blockchain');
+                    }
+                  }
+                  // Local: just buy at bid price as a simplified auction
+                  updateGame(g => ({
+                    ...g,
+                    ownership: { ...g.ownership, [selected]: curPlayer.id },
+                    balances: { ...g.balances, [curPlayer.id]: (g.balances[curPlayer.id] || 0) - auctionBid },
+                  }));
+                  log('good', 'Auction Won', `${monoTiles[selected]?.label || 'Property'} bought for $${auctionBid}`);
+                  setAuctionOpen(false);
+                }}
+              >
+                Place Bid
               </button>
             </div>
           </div>

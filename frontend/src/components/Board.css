@@ -641,7 +641,69 @@
   .token.token-active { animation: none; }
 }
 
-/* --- Responsive ------------------------------------------------------ */
+/* --- Responsive: Laptops --------------------------------------------- */
+@media (max-width: 1440px) {
+  .monoTile {
+    font-size: clamp(8px, 0.7vw, 11px);
+    padding: 4px;
+  }
+
+  .monoTile .label {
+    font-size: 0.9em;
+    letter-spacing: 0;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .monoTile.corner {
+    font-size: clamp(9px, 0.8vw, 12px);
+  }
+
+  .monoTile.corner .label {
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .monoTile {
+    font-size: clamp(7px, 0.65vw, 10px);
+    padding: 3px;
+  }
+
+  .monoTile .label {
+    font-size: 0.85em;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    margin-top: 2px;
+  }
+
+  .monoTile.left .label,
+  .monoTile.right .label {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .monoTile.corner {
+    font-size: clamp(8px, 0.75vw, 11px);
+  }
+
+  .boardMono {
+    gap: 2px;
+    padding: 6px 6px 62px 6px;
+  }
+
+  .diceTray {
+    padding: 8px 16px;
+    gap: 10px;
+  }
+
+  .die {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+/* --- Responsive: Mobile ---------------------------------------------- */
 @media (max-width: 600px) {
   .boardMono {
     gap: 2px;
