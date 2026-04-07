@@ -33,7 +33,7 @@ rpc_url = "https://api.cartridge.gg/x/starknet/sepolia"
 # You'll need to add your own testnet account credentials here
 account_address = "0x0793861c40acA86f0E36a909CB4Ec253adF5874ac8c4F5D4FfbAF361BE9D6B98"
 private_key = "0x015e6cd12ffdf5fe6d158e3c1d1dc131535acba48ce9408b0cc308a2b9a7f821"
-world_address ="0x0161d03d910b012924b640a5117015289aaf9a36a856b204cd91b835ba60d9bb"
-world_block = 1590090
+world_address = "0x0383a3e99dbe9407adac729ec343a84d8c291e04103eb5f3504fbe89afa76608"
+world_block = 8365014
 [writers]
 "whale_opoly" = ["whale_opoly-game_manager", "whale_opoly-board_actions", "whale_opoly-property_management", "whale_opoly-treasury", "whale_opoly-random_engine", "whale_opoly-security_simple"]
