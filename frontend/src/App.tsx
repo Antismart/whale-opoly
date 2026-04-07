@@ -931,6 +931,40 @@ function App() {
               <PlayersPanel players={game.players} balances={game.balances} positions={game.positions} currentIdx={game.currentIdx} />
 
               <div className="panelTitle" style={{ marginTop: 16 }}>
+                <span className="icon" aria-hidden>{DiceIcon}</span>
+                Cards & Decks
+              </div>
+              <div className="tileDetails" style={{ fontSize: 13 }}>
+                <div className="row">
+                  <span>Chance deck</span>
+                  <span>{chanceDeck.length} cards remaining</span>
+                </div>
+                <div className="row">
+                  <span>Chest deck</span>
+                  <span>{chestDeck.length} cards remaining</span>
+                </div>
+                {game.players.map(p => {
+                  const passes = jailPasses[p.id] || 0;
+                  const ownedCount = Object.values(game.ownership).filter(o => o === p.id).length;
+                  return (
+                    <div key={p.id} className="row">
+                      <span style={{ color: p.color, fontWeight: 600 }}>{p.name}</span>
+                      <span>
+                        {ownedCount} properties
+                        {passes > 0 && <span style={{ marginLeft: 8, color: 'var(--accent)' }}>🎟 {passes} jail pass{passes > 1 ? 'es' : ''}</span>}
+                      </span>
+                    </div>
+                  );
+                })}
+                {curPlayer.id && (inJail[curPlayer.id] || 0) > 0 && (
+                  <div className="row" style={{ color: 'var(--warn)' }}>
+                    <span>⛓ {curPlayer.name} in Jail</span>
+                    <span>{inJail[curPlayer.id]} turn{inJail[curPlayer.id] > 1 ? 's' : ''} left</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="panelTitle" style={{ marginTop: 16 }}>
                 <span className="icon" aria-hidden>{EventIcon}</span>
                 Activity
               </div>
@@ -996,12 +1030,25 @@ function App() {
           <div className="cardPanel">
             <div className="cardHeader">
               <span className={`deckTag ${openCard.deck}`}>{openCard.deck==='chance'?'Chance':'Chest'}</span>
-              <button className="closeBtn" onClick={()=>!openCard.keep?setOpenCard(undefined):setOpenCard(undefined)} aria-label="Close">×</button>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                Drawn by <strong style={{ color: curPlayer.color }}>{curPlayer.name}</strong>
+              </span>
+              <button className="closeBtn" onClick={()=>setOpenCard(undefined)} aria-label="Close">&times;</button>
             </div>
             <div className="cardTitle">{openCard.title}</div>
-            <div className="cardBody">{openCard.text}</div>
+            <div className="cardBody">
+              {openCard.text}
+              {openCard.action.kind === 'money' && (
+                <div style={{ marginTop: 8, fontWeight: 700, color: openCard.action.amount >= 0 ? 'var(--good)' : 'var(--danger, #ef4444)' }}>
+                  {openCard.action.amount >= 0 ? '+' : '-'}${Math.abs(openCard.action.amount)}
+                </div>
+              )}
+              {openCard.action.kind === 'jail_pass' && (
+                <div style={{ marginTop: 8, color: 'var(--accent)' }}>This card is kept until used.</div>
+              )}
+            </div>
             <div className="cardActions">
-              {openCard.action.kind==='jail_pass' && <span className="chip">Keep</span>}
+              {openCard.action.kind==='jail_pass' && <span className="chip" style={{ color: 'var(--accent)', borderColor: 'rgba(14,165,233,0.3)' }}>Keep Card</span>}
               <button className="btn glow" onClick={()=>applyCard(openCard)}>Apply</button>
             </div>
           </div>
