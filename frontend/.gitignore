@@ -23,5 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# Backup of the dead hosted Torii config
-.env.slot-backup
+# Local environment. Tracked by mistake until now — .env.example is the
+# committed template; real values stay on the machine that needs them.
+.env
+.env.*
+!.env.example
