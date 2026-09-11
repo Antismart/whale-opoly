@@ -1,0 +1,366 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+/* ============================================================
+   ABYSSAL PROTOCOL — design tokens
+   Whaleopoly · Starknet Sepolia testnet · dark theme only
+   Single source of truth. Do not hard-code colours downstream.
+   ============================================================ */
+
+:root {
+  /* ---------- Typeface ---------- */
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ---------- Base surfaces ---------- */
+  --bg: #040a15;              /* app ground */
+  --bg-deep: #01060e;         /* wells, insets, board gutter */
+  --bg-surface: #0a1628;      /* elevated opaque surface */
+  --bg-elevated: #0d1d33;     /* highest opaque surface (menus, modals) */
+  --panel: rgba(6, 22, 40, 0.85);
+  --panel-2: rgba(10, 30, 55, 0.60);
+  --panel-solid: #061628;
+  --overlay: rgba(4, 10, 21, 0.80);   /* modal scrim */
+  --scrim: rgba(4, 10, 21, 0.55);     /* soft veil over media */
+
+  /* ---------- Elevation tints (translucent, stack over any base) ---------- */
+  --surface-0: rgba(14, 165, 233, 0.02);
+  --surface-1: rgba(14, 165, 233, 0.04);
+  --surface-2: rgba(14, 165, 233, 0.07);
+  --surface-3: rgba(14, 165, 233, 0.11);
+
+  /* ---------- Borders ---------- */
+  --border-subtle: rgba(14, 165, 233, 0.08);
+  --border-default: rgba(14, 165, 233, 0.15);
+  --border-strong: rgba(14, 165, 233, 0.25);
+  --border-focus: rgba(14, 165, 233, 0.55);
+  --hairline: 1px solid var(--border-subtle);
+  --hairline-default: 1px solid var(--border-default);
+  --hairline-strong: 1px solid var(--border-strong);
+
+  /* ---------- Text (all clear 4.5:1 on --bg) ---------- */
+  --text: #e0f2fe;            /* body            ~15.6:1 */
+  --text-bright: #f0f9ff;     /* titles, values  ~17.4:1 */
+  --muted: #7aa2c4;           /* meta            ~7.4:1  */
+  /* Tertiary meta. Measured where it is actually used, not just on --bg:
+     7.5:1 on --bg, 5.3:1 on --bg-elevated, 4.7:1 on surface-2 over
+     --bg-elevated, 4.8:1 on the gold tier card. This is the floor —
+     never introduce anything dimmer, and never put it on a surface
+     lighter than the tier-card composite. */
+  --text-dim: #7093b4;
+  --text-on-accent: #04121f;  /* text on the cyan→teal gradient */
+
+  /* ---------- Accents ---------- */
+  --accent: #0ea5e9;
+  --accent-bright: #38bdf8;
+  --accent-deep: #0369a1;
+  --accent-2: #14b8a6;
+  --accent-2-bright: #2dd4bf;
+  --gold: #f59e0b;
+  --warn: #f97316;
+  --danger: #ef4444;
+  --good: #14b8a6;
+  --success: #14b8a6;
+
+  /* ---------- Accent tints (chips, wells, status rows) ---------- */
+  --accent-soft: rgba(14, 165, 233, 0.12);
+  --accent-2-soft: rgba(20, 184, 166, 0.12);
+  --gold-soft: rgba(245, 158, 11, 0.12);
+  --warn-soft: rgba(249, 115, 22, 0.12);
+  --danger-soft: rgba(239, 68, 68, 0.12);
+  --good-soft: rgba(20, 184, 166, 0.12);
+
+  /* ---------- Accent text-on-dark (readable variants of the accents) ---------- */
+  --accent-ink: #7dd3fc;
+  --accent-2-ink: #5eead4;
+  --gold-ink: #fcd34d;
+  --warn-ink: #fdba74;
+  --danger-ink: #fca5a5;
+  --danger-ink-hover: #fecaca;  /* the one step brighter, for danger hover states */
+  --good-ink: #5eead4;
+
+  /* ---------- Player colours (max 6 seats) ---------- */
+  --player-1: #ff6b6b;
+  --player-2: #4ecdc4;
+  --player-3: #45b7d1;
+  --player-4: #f9ca24;
+  --player-5: #a78bfa;
+  --player-6: #fb923c;
+
+  /* ---------- Property colour groups (exact, 8 groups) ---------- */
+  --group-1: #9ad0f5;
+  --group-2: #c7e59f;
+  --group-3: #d9a4f3;
+  --group-4: #f6d47c;
+  --group-5: #7fc9b0;
+  --group-6: #e7a592;
+  --group-7: #7fb2f0;
+  --group-8: #3aa3e3;
+
+  /* ---------- Board tile ink — the five non-property tile kinds carry a
+                faint tint of their own accent so the name still reads as
+                that kind at 26px tile pitch. ---------- */
+  --tile-ink-rail: #cfe9fb;
+  --tile-ink-utility: #cdefe8;
+  --tile-ink-tax: #f7dcc4;
+  --tile-ink-chance: #f5e4bb;
+  --tile-ink-mortgaged: #ffd9bb;
+
+  /* ---------- Entry-tier metals (Bronze / Silver / Gold / Platinum).
+                Presentation only — the four tiers themselves are fixed at
+                0.01 / 0.1 / 1 / 10 ETH. ---------- */
+  --tier-bronze: #d08b4f;
+  --tier-silver: #b9c9d6;
+  --tier-gold: #fcd34d;
+  --tier-platinum: #8fd7f5;
+
+  /* ---------- Glow — hierarchy only: active player token, selected tile,
+                 the one primary action button. Never decoration. ---------- */
+  --glow-subtle: 0 0 12px rgba(14, 165, 233, 0.12);
+  --glow: 0 0 20px rgba(14, 165, 233, 0.25), 0 0 60px rgba(20, 184, 166, 0.10);
+  --glow-strong: 0 0 24px rgba(14, 165, 233, 0.38), 0 0 72px rgba(20, 184, 166, 0.16);
+  --glow-teal: 0 0 18px rgba(20, 184, 166, 0.28);
+  --glow-gold: 0 0 20px rgba(245, 158, 11, 0.20), 0 0 40px rgba(245, 158, 11, 0.08);
+
+  /* ---------- Shadows & inner highlights ---------- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 18px 60px rgba(0, 0, 0, 0.55);
+  --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --inset-well: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+
+  /* ---------- Radii ----------
+     Two radii carry the whole product:
+       --r-2xl (18px) = every TOP-LEVEL surface — panel, rail panel, modal
+                        panel, lobby card, wallet popover, the board itself.
+       --r-lg  (12px) = every NESTED surface inside one of those — wells,
+                        metric strips, list rows, tier cards, note blocks.
+     --r-3xl is RESERVED for the two full-bleed hero surfaces only
+     (.lobby-hero and .ap-mgate-card). Do not use it anywhere else.
+     The smaller radii are for controls, not containers. */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 12px;
+  --r-xl: 14px;
+  --r-2xl: 18px;
+  --r-3xl: 22px;
+  --r-pill: 999px;
+
+  /* ---------- Spacing (4px rhythm) ---------- */
+  --sp-0: 0px;
+  --sp-05: 2px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 28px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* ---------- Type scale ----------
+     --text-2xs is 10px and is RESERVED for text that sits inside a board
+     tile, where the tile pitch (down to ~28px at the 1024px floor) leaves
+     no other option. Every UI micro-label — uppercase caps rows, key
+     labels, small pills — uses --text-xs (11px) paired with --muted, never
+     --text-dim. Meta text is 12–13px (--text-meta / --text-sm). */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-meta: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 17px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --text-2xl: 34px;
+  /* Hero display line. Used by .lobby-hero-title and .ap-mgate-title —
+     the only two full-bleed hero surfaces in the app. */
+  --text-display: 30px;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-black: 800;
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.3;
+  --lh-base: 1.5;
+  --lh-relaxed: 1.65;
+
+  --ls-tight: -0.01em;
+  --ls-base: 0.02em;
+  --ls-wide: 0.06em;
+  --ls-caps: 0.12em;
+
+  /* ---------- Motion ---------- */
+  --ease: ease;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-1: 120ms;
+  --dur-2: 150ms;
+  --dur-3: 160ms;
+  --dur-4: 300ms;
+  --t-fast: 120ms ease;
+  --t-base: 150ms ease;
+  --t-slow: 300ms ease;
+
+  /* ---------- Focus ---------- */
+  --focus-color: var(--accent);
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --focus-ring: 0 0 0 3px rgba(14, 165, 233, 0.18);
+
+  /* ---------- Layout ---------- */
+  --sidebar-w: 260px;
+  --topbar-h: 64px;
+  --content-pad: 28px;
+  --app-min-w: 1024px;
+  --content-max-w: 1440px;
+  --vhSafe: min(100dvh, 100vh);
+
+  /* ---------- Z-index ---------- */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 50;
+  --z-dropdown: 100;
+  --z-modal: 1000;
+  --z-toast: 9999;
+
+  /* ---------- Scrollbar ---------- */
+  --scroll-w: 8px;
+  --scroll-track: transparent;
+  --scroll-thumb: rgba(14, 165, 233, 0.20);
+  --scroll-thumb-hover: rgba(14, 165, 233, 0.38);
+
+  /* ---------- Ambient background: 3 large blurred orbs at ~6% ---------- */
+  --orb-a: radial-gradient(ellipse 1100px 760px at 8% -8%, rgba(14, 165, 233, 0.06), transparent 62%);
+  --orb-b: radial-gradient(ellipse 980px 700px at 94% 12%, rgba(20, 184, 166, 0.06), transparent 60%);
+  --orb-c: radial-gradient(ellipse 900px 640px at 46% 108%, rgba(8, 145, 178, 0.06), transparent 62%);
+  --ambient-orbs: var(--orb-a), var(--orb-b), var(--orb-c);
+  --ambient: var(--ambient-orbs), var(--bg);
+}
+
+/* ============================================================
+   Global reset + base
+   ============================================================ */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-base);
+  letter-spacing: var(--ls-base);
+  color: var(--text);
+  background: var(--ambient);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-snug);
+  color: var(--text-bright);
+  letter-spacing: var(--ls-tight);
+}
+
+p { margin: 0; }
+
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--accent-ink); }
+a:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-xs);
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+button { background: none; border: none; padding: 0; cursor: pointer; }
+
+img, svg, video, canvas { display: block; max-width: 100%; }
+
+hr { border: none; border-top: var(--hairline); margin: 0; }
+
+::selection { background: rgba(14, 165, 233, 0.28); color: var(--text-bright); }
+
+/* Single, consistent focus treatment for anything not otherwise styled */
+:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+/* ============================================================
+   Numeric defaults — every money value, count, timer, dice total
+   and address must be tabular.
+   ============================================================ */
+
+.num,
+input[type='number'],
+time,
+code,
+kbd {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.num { letter-spacing: 0; }
+
+/* Typography helpers that pair with the scale above */
+.display {
+  font-size: var(--text-xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--text-bright);
+}
+
+.display-lg { font-size: var(--text-2xl); }
+
+.section-title {
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  color: var(--text-bright);
+  letter-spacing: 0.01em;
+}
+
+.meta {
+  font-size: var(--text-meta);
+  line-height: var(--lh-snug);
+  color: var(--muted);
+}
+
+.caps {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+}

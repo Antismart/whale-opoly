@@ -1,0 +1,535 @@
+/* ============================================================
+   LOBBY SCREEN — Abyssal Protocol
+   Layout + lobby-specific styling only. Everything reusable
+   (panel, btn, chip, field, segmented, empty, well) comes from
+   styles/tokens.css + styles/primitives.css.
+   ============================================================ */
+
+.lobby {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------
+   Hero band
+   ------------------------------------------------------------ */
+
+.lobby-hero {
+  position: relative;
+  overflow: hidden;
+  padding: var(--sp-8) var(--sp-8) var(--sp-7);
+  background:
+    radial-gradient(ellipse 720px 320px at 6% -30%, rgba(14, 165, 233, 0.10), transparent 68%),
+    radial-gradient(ellipse 620px 300px at 88% 130%, rgba(20, 184, 166, 0.08), transparent 66%),
+    var(--panel);
+  border: var(--hairline-default);
+  border-radius: var(--r-3xl);
+  box-shadow: var(--inset-top), var(--shadow-2);
+}
+
+.lobby-hero-whale > svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.lobby-hero-whale {
+  display: block;
+  line-height: 0;
+  position: absolute;
+  right: -70px;
+  top: 50%;
+  width: 460px;
+  max-width: none;
+  transform: translateY(-50%);
+  opacity: 0.04;
+  pointer-events: none;
+  user-select: none;
+}
+
+.lobby-hero-copy {
+  position: relative;
+  z-index: var(--z-raised);
+  display: grid;
+  gap: var(--sp-4);
+  max-width: 62ch;
+}
+
+.lobby-hero-eyebrow {
+  justify-self: start;
+  letter-spacing: var(--ls-base);
+}
+
+.lobby-hero-title {
+  font-size: var(--text-display);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--text-bright);
+}
+
+.lobby-hero-sub {
+  max-width: 58ch;
+  font-size: var(--text-base);
+  line-height: var(--lh-relaxed);
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------
+   Two columns — roughly 8 / 4
+   ------------------------------------------------------------ */
+
+.lobby-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 8fr) minmax(320px, 4fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.lobby-tables {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.lobby-tables-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.lobby-tables-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.lobby-filter-count {
+  margin-left: 6px;
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.segmented-option.is-active .lobby-filter-count { color: var(--accent-ink); }
+
+/* ------------------------------------------------------------
+   Table card grid
+   ------------------------------------------------------------ */
+
+/* Auto-fitting rather than breakpointed: the card grid answers the column
+   width it is actually given, so it needs no breakpoint of its own and
+   cannot fight the shared <= 1200px step. */
+.lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sp-4);
+}
+
+.lobby-card {
+  --tier-color: var(--accent);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  overflow: hidden;
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  background: var(--surface-1);
+  border: var(--hairline);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--inset-top);
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    transform var(--dur-3) var(--ease),
+    box-shadow var(--dur-3) var(--ease);
+}
+
+.lobby-card:hover {
+  background: var(--surface-2);
+  border-color: var(--border-default);
+  transform: translateY(-2px);
+  box-shadow: var(--inset-top), var(--shadow-2);
+}
+
+.lobby-card:focus-within {
+  border-color: var(--border-strong);
+}
+
+/* Tier tints — metal accents, one per tier */
+.lobby-card[data-tier='bronze'],
+.lobby-tier[data-tier='bronze'] { --tier-color: var(--tier-bronze); }
+.lobby-card[data-tier='silver'],
+.lobby-tier[data-tier='silver'] { --tier-color: var(--tier-silver); }
+.lobby-card[data-tier='gold'],
+.lobby-tier[data-tier='gold'] { --tier-color: var(--tier-gold); }
+.lobby-card[data-tier='platinum'],
+.lobby-tier[data-tier='platinum'] { --tier-color: var(--tier-platinum); }
+
+/* Top accent hairline, coloured by tier */
+.lobby-card-rail {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--tier-color), rgba(14, 165, 233, 0) 78%);
+  opacity: 0.75;
+  transition: opacity var(--dur-3) var(--ease);
+}
+
+.lobby-card:hover .lobby-card-rail { opacity: 1; }
+
+.lobby-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.lobby-card-title {
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-tight);
+  color: var(--text-bright);
+}
+
+.lobby-card-title .num { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+
+/* Extends .chip.chip-sm — tier tone and casing only, so the tier pill reads
+   at exactly the same height here as every other small pill in the app. */
+.lobby-tier-badge {
+  flex: none;
+  border-color: color-mix(in srgb, var(--tier-color) 34%, transparent);
+  background: color-mix(in srgb, var(--tier-color) 12%, transparent);
+  color: var(--tier-color);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+}
+
+/* 3-up metric strip */
+.lobby-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: var(--border-subtle);
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+}
+
+.lobby-metric {
+  display: grid;
+  gap: 3px;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-deep);
+}
+
+.lobby-metric-label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+}
+
+.lobby-metric-value {
+  font-size: 14px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+/* Seat indicator */
+.lobby-seatline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.lobby-seatdots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lobby-seatdot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(14, 165, 233, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(224, 242, 254, 0.10);
+  transition: background var(--dur-3) var(--ease), box-shadow var(--dur-3) var(--ease);
+}
+
+.lobby-seatdot.is-filled { box-shadow: inset 0 0 0 1px rgba(4, 10, 21, 0.45); }
+
+.lobby-seatdots-lg { gap: 7px; margin-left: var(--sp-2); }
+.lobby-seatdots-lg .lobby-seatdot { width: 11px; height: 11px; }
+
+/* Host line */
+.lobby-host {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-1);
+}
+
+.lobby-host-label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+}
+
+.lobby-host-value {
+  font-size: var(--text-meta);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* Actions */
+.lobby-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: var(--hairline);
+}
+
+.lobby-join { flex: 1 1 auto; }
+
+/* The screen's single glowing primary is "Create table". A card's Start button
+   keeps the primary gradient but surrenders the glow, so the glow budget holds. */
+.btn.btn-primary.lobby-start,
+.btn.btn-primary.lobby-start:hover:not(:disabled),
+.btn.btn-primary.lobby-start:active:not(:disabled) {
+  box-shadow: var(--inset-top);
+}
+
+.btn.btn-ghost.lobby-cancel { color: var(--danger-ink); }
+
+.btn.btn-ghost.lobby-cancel:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: rgba(239, 68, 68, 0.32);
+  color: var(--danger-ink-hover);
+}
+
+.btn.btn-ghost.lobby-cancel:focus-visible { outline-color: var(--danger); }
+
+.lobby-card-note {
+  font-size: var(--text-meta);
+  line-height: var(--lh-snug);
+  color: var(--text-dim);
+}
+
+/* Empty state */
+.lobby-empty { padding: var(--sp-12) var(--sp-6); gap: var(--sp-3); }
+.lobby-empty-mark { opacity: 0.8; margin-bottom: var(--sp-1); }
+.lobby-empty-actions { justify-content: center; margin-top: var(--sp-2); }
+
+/* ------------------------------------------------------------
+   Create a table (sticky right column)
+   ------------------------------------------------------------ */
+
+.lobby-aside {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--sp-4));
+  min-width: 0;
+}
+
+.lobby-create { padding: var(--sp-5); }
+.lobby-create-head { align-items: flex-start; margin-bottom: var(--sp-4); }
+.lobby-create-head .panel-sub { margin-top: 2px; }
+
+.lobby-create-body {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.lobby-field-block {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+/* Tier selector — four cards, not a select */
+.lobby-tiers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.lobby-tier {
+  --tier-color: var(--accent);
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: var(--sp-3);
+  text-align: left;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tier-color) 7%, transparent), transparent 70%),
+    var(--surface-1);
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    box-shadow var(--dur-3) var(--ease),
+    transform var(--dur-1) var(--ease);
+}
+
+.lobby-tier:hover {
+  border-color: var(--border-default);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tier-color) 12%, transparent), transparent 70%),
+    var(--surface-2);
+}
+
+.lobby-tier:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.lobby-tier:active { transform: translateY(1px); }
+
+.lobby-tier.is-selected {
+  border-color: color-mix(in srgb, var(--tier-color) 55%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tier-color) 16%, transparent), transparent 74%),
+    var(--surface-2);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tier-color) 30%, transparent);
+}
+
+.lobby-tier-name {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.lobby-tier.is-selected .lobby-tier-name { color: var(--text-bright); }
+
+.lobby-tier-eth {
+  font-size: var(--text-base);
+  font-weight: var(--fw-bold);
+  color: var(--tier-color);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.lobby-tier-blurb {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* Player stepper */
+.lobby-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-deep);
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--inset-well);
+}
+
+.lobby-stepper-value {
+  min-width: 26px;
+  text-align: center;
+  font-size: var(--text-md);
+  font-weight: var(--fw-bold);
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* Pot readout */
+.lobby-pot {
+  display: grid;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.lobby-pot-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.lobby-pot-label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+}
+
+.lobby-pot-value {
+  font-size: var(--text-lg);
+  font-weight: var(--fw-bold);
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.lobby-pot-meta {
+  font-size: var(--text-meta);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.lobby-create-blocker {
+  font-size: var(--text-meta);
+  line-height: var(--lh-snug);
+  color: var(--warn-ink);
+}
+
+.lobby-create-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: var(--hairline);
+  font-size: var(--text-meta);
+  line-height: var(--lh-base);
+  color: var(--text-dim);
+}
+
+.lobby-create-note-icon {
+  display: inline-flex;
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent-2);
+}
+
+/* ------------------------------------------------------------
+   NARROW — the shared <= 1200px breakpoint (see App.css).
+   ------------------------------------------------------------ */
+
+@media (max-width: 1200px) {
+  .lobby { gap: var(--sp-5); }
+  .lobby-hero { padding: var(--sp-7) var(--sp-6) var(--sp-6); }
+  .lobby-columns {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+    gap: var(--sp-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-card:hover { transform: none; }
+  .lobby-tier:active { transform: none; }
+}

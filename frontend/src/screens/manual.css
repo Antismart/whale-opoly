@@ -1,0 +1,654 @@
+/* ============================================================
+   MANUAL SCREEN — Abyssal Protocol
+   Two-pane docs layout. Depends on styles/tokens.css and
+   styles/primitives.css, which are imported globally by the
+   shell. Nothing here redefines a token; only layout and the
+   long-form typography specific to the rulebook lives here.
+   No glow: the glow budget belongs to the board.
+   ============================================================ */
+
+.mn-screen {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: var(--sp-12);
+  align-items: start;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------
+   Left pane — sticky contents
+   ------------------------------------------------------------ */
+
+.mn-side {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--sp-5));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  width: 240px;
+  min-width: 0;
+}
+
+.mn-back {
+  gap: var(--sp-2);
+  justify-content: center;
+}
+
+.mn-back > svg {
+  flex: none;
+  opacity: 0.8;
+}
+
+/* ---- search ---- */
+
+.mn-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.mn-search-icon {
+  position: absolute;
+  left: 11px;
+  display: inline-flex;
+  color: var(--text-dim);
+  pointer-events: none;
+  transition: color var(--dur-2) var(--ease);
+}
+
+.mn-search-input {
+  width: 100%;
+  padding-left: 32px;
+  font-size: var(--text-sm);
+}
+
+.mn-search-input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.mn-search:focus-within .mn-search-icon {
+  color: var(--accent);
+}
+
+/* ---- contents rail ---- */
+
+.mn-toc {
+  position: relative;
+  padding-left: var(--sp-4);
+  min-width: 0;
+}
+
+.mn-rail {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: var(--r-pill);
+  background: var(--border-subtle);
+  overflow: hidden;
+}
+
+.mn-rail-fill {
+  display: block;
+  width: 2px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.28), rgba(20, 184, 166, 0.42));
+  transition: height var(--dur-3) var(--ease-out);
+}
+
+.mn-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mn-toc-item {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: 7px var(--sp-2) 7px var(--sp-2);
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-snug);
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease);
+}
+
+/* the "you are here" segment, drawn on the shared progress rail */
+.mn-toc-item::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--sp-4));
+  top: 5px;
+  bottom: 5px;
+  width: 2px;
+  border-radius: var(--r-pill);
+  background: transparent;
+  transition: background-color var(--dur-2) var(--ease);
+}
+
+.mn-toc-item:hover {
+  background: var(--surface-1);
+  color: var(--text);
+}
+
+.mn-toc-item:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.mn-toc-item.is-active {
+  color: var(--text-bright);
+  font-weight: var(--fw-semibold);
+  background: var(--surface-1);
+}
+
+.mn-toc-item.is-active::before {
+  background: var(--accent-bright);
+}
+
+.mn-toc-num {
+  flex: none;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-base);
+  color: var(--text-dim);
+  transition: color var(--dur-2) var(--ease);
+}
+
+.mn-toc-item:hover .mn-toc-num { color: var(--muted); }
+.mn-toc-item.is-active .mn-toc-num { color: var(--accent); }
+
+.mn-toc-label {
+  min-width: 0;
+}
+
+.mn-toc-empty {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--lh-base);
+  color: var(--muted);
+}
+
+.mn-side-foot {
+  padding-top: var(--sp-3);
+  border-top: var(--hairline);
+  color: var(--text-dim);
+}
+
+/* ------------------------------------------------------------
+   Right pane — the rules
+   ------------------------------------------------------------ */
+
+.mn-doc {
+  max-width: 720px;
+  min-width: 0;
+}
+
+.mn-doc-head {
+  padding-bottom: var(--sp-6);
+  margin-bottom: var(--sp-8);
+  border-bottom: var(--hairline-default);
+}
+
+.mn-eyebrow {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-2);
+}
+
+.mn-doc-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--text-bright);
+}
+
+.mn-doc-sub {
+  margin: var(--sp-2) 0 0;
+  max-width: 56ch;
+  font-size: var(--text-base);
+  line-height: var(--lh-base);
+  color: var(--muted);
+}
+
+.mn-doc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.mn-doc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+/* ---- sections ---- */
+
+.mn-section {
+  scroll-margin-top: calc(var(--topbar-h) + var(--sp-6));
+  padding-bottom: var(--sp-12);
+}
+
+.mn-section + .mn-section {
+  padding-top: var(--sp-2);
+}
+
+.mn-section-head {
+  margin-bottom: var(--sp-5);
+}
+
+.mn-section-index {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
+  color: var(--text-dim);
+}
+
+.mn-section-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--text-bright);
+}
+
+.mn-section-sub {
+  margin: var(--sp-2) 0 0;
+  max-width: 60ch;
+  font-size: var(--text-sm);
+  line-height: var(--lh-base);
+  color: var(--text-dim);
+}
+
+/* ---- long-form typography ---- */
+
+.mn-p {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.mn-h3 {
+  margin: var(--sp-7) 0 var(--sp-3);
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  color: var(--text-bright);
+}
+
+.mn-section-head + .mn-h3 {
+  margin-top: 0;
+}
+
+.mn-p strong,
+.mn-li-text strong,
+.mn-note-text strong {
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+}
+
+/* value chips: $200, 0.1 ETH, $1,500 */
+.mn-code {
+  display: inline-block;
+  padding: 1px 5px;
+  margin: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  font-family: var(--font-sans);
+  font-size: 0.92em;
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  letter-spacing: var(--ls-base);
+  color: var(--text-bright);
+  white-space: nowrap;
+}
+
+/* ---- bulleted list, cyan diamond markers ---- */
+
+.mn-ul {
+  list-style: none;
+  margin: 0 0 var(--sp-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.mn-li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.mn-marker {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-top: 10px;
+  background: var(--accent);
+  transform: rotate(45deg);
+  border-radius: 1px;
+}
+
+.mn-li-text {
+  min-width: 0;
+}
+
+/* ---- numbered steps ---- */
+
+.mn-ol {
+  list-style: none;
+  margin: 0 0 var(--sp-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.mn-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.mn-step-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--accent);
+}
+
+/* ---- callouts ---- */
+
+.mn-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin: var(--sp-5) 0;
+  padding: var(--sp-4);
+  border: 1px solid;
+  border-left-width: 2px;
+  border-radius: var(--r-lg);
+}
+
+.mn-note.is-info {
+  border-color: rgba(14, 165, 233, 0.25);
+  border-left-color: var(--accent);
+  background: rgba(14, 165, 233, 0.07);
+}
+
+.mn-note.is-cost {
+  border-color: rgba(245, 158, 11, 0.28);
+  border-left-color: var(--gold);
+  background: rgba(245, 158, 11, 0.07);
+}
+
+.mn-note-icon {
+  flex: none;
+  display: inline-flex;
+  margin-top: 1px;
+}
+
+.mn-note.is-info .mn-note-icon { color: var(--accent-bright); }
+.mn-note.is-cost .mn-note-icon { color: var(--gold); }
+
+.mn-note-body {
+  min-width: 0;
+}
+
+.mn-note-title {
+  margin: 0 0 4px;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  color: var(--text-bright);
+}
+
+.mn-note-text {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.mn-note .mn-code {
+  background: var(--bg-deep);
+}
+
+/* ---- tables ---- */
+
+.mn-table {
+  margin: 0 0 var(--sp-5);
+  border: var(--hairline-default);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.mn-tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 9px var(--sp-4);
+  border-top: var(--hairline);
+}
+
+.mn-tr:first-child {
+  border-top: 0;
+}
+
+.mn-tr-head {
+  background: var(--surface-2);
+}
+
+.mn-th {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.mn-th:last-child {
+  text-align: right;
+}
+
+.mn-td {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--lh-base);
+  color: var(--text);
+}
+
+.mn-td-value {
+  justify-content: flex-end;
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+  white-space: nowrap;
+}
+
+.mn-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(4, 10, 21, 0.55) inset;
+}
+
+/* ------------------------------------------------------------
+   Turn-loop diagram
+   ------------------------------------------------------------ */
+
+.mn-diagram {
+  margin: 0 0 var(--sp-5);
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  border: var(--hairline-default);
+  border-radius: var(--r-xl);
+  background: var(--surface-1);
+  box-shadow: var(--inset-top);
+}
+
+.mn-diagram-cap {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--muted);
+}
+
+.mn-loop {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--sp-1) 0;
+  margin: 0;
+  padding: 0;
+}
+
+.mn-loop-item {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.mn-loop-node {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  padding: var(--sp-2) 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.mn-loop-node.is-optional {
+  border-style: dashed;
+  border-color: var(--border-subtle);
+  background: var(--surface-0);
+}
+
+.mn-loop-icon {
+  display: inline-flex;
+  color: var(--accent-bright);
+}
+
+.mn-loop-node.is-optional .mn-loop-icon {
+  color: var(--muted);
+}
+
+.mn-loop-label {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  line-height: 1.2;
+  color: var(--text-bright);
+  white-space: nowrap;
+}
+
+.mn-loop-node.is-optional .mn-loop-label {
+  color: var(--text);
+}
+
+.mn-loop-tag {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.mn-loop-arrow {
+  display: inline-flex;
+  align-self: center;
+  padding: 0 6px;
+  color: var(--accent);
+  opacity: 0.65;
+}
+
+.mn-loop-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding-top: var(--sp-3);
+  border-top: var(--hairline);
+  font-size: var(--text-meta);
+  line-height: var(--lh-base);
+  color: var(--muted);
+}
+
+.mn-loop-return {
+  flex: none;
+  display: inline-flex;
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+/* ------------------------------------------------------------
+   Narrower desktops (min supported width 1024px)
+   ------------------------------------------------------------ */
+
+@media (max-width: 1200px) {
+  .mn-screen {
+    gap: var(--sp-8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mn-rail-fill,
+  .mn-toc-item,
+  .mn-toc-item::before,
+  .mn-toc-num,
+  .mn-search-icon {
+    transition: none;
+  }
+}

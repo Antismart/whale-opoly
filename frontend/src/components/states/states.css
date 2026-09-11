@@ -1,0 +1,549 @@
+/* ============================================================
+   ABYSSAL PROTOCOL — edge states, toast stack, mobile gate
+   Depends on styles/tokens.css + styles/primitives.css.
+   Only layout and behaviour specific to these components lives
+   here; every colour, radius, easing and spacing value comes
+   from the token layer.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   A. Toast stack — bottom right, offset off the control rail
+   ------------------------------------------------------------ */
+
+.ap-toasts {
+  position: fixed;
+  right: var(--content-pad);
+  bottom: var(--sp-6);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
+  width: 348px;
+  max-width: calc(100vw - var(--sp-8));
+  pointer-events: none;
+}
+
+.ap-toast {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr 26px;
+  align-items: start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  background: var(--bg-elevated);
+  border: var(--hairline-default);
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  pointer-events: auto;
+  overflow: hidden;
+  animation: ap-toast-in var(--dur-4) var(--ease-out) both;
+}
+
+@keyframes ap-toast-in {
+  from { opacity: 0; transform: translate3d(16px, 6px, 0) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.ap-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  flex: none;
+}
+
+.ap-toast-body { min-width: 0; display: grid; gap: var(--sp-1); }
+
+.ap-toast-message {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-snug);
+  color: var(--text-bright);
+  overflow-wrap: anywhere;
+}
+
+/* Extends .chip.chip-xs — the box comes from the primitive, this adds
+   only the link affordance. */
+.ap-toast-tx {
+  align-self: start;
+  background: var(--surface-1);
+  border-color: var(--border-subtle);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    color var(--dur-3) var(--ease);
+}
+
+/* The hash is the whole control, so it follows the link colour rather than
+   the chip primitive's neutral value colour. */
+.ap-toast-tx .num { color: inherit; }
+
+.ap-toast-tx:hover {
+  background: var(--surface-2);
+  border-color: var(--border-default);
+  color: var(--accent-ink);
+}
+
+.ap-toast-tx:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ap-toast-tx > svg { flex: none; opacity: 0.8; }
+
+.ap-toast-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin: -2px -2px 0 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    color var(--dur-3) var(--ease);
+}
+
+.ap-toast-close:hover {
+  background: var(--surface-2);
+  border-color: var(--border-subtle);
+  color: var(--text-bright);
+}
+
+.ap-toast-close:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ap-toast-close:active { transform: translateY(1px); }
+
+/* Auto-dismiss hairline */
+.ap-toast-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  transform-origin: left center;
+  animation: ap-toast-drain linear forwards;
+  opacity: 0.65;
+}
+
+@keyframes ap-toast-drain {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* Variants — the left rule, the icon and the hairline carry the tone */
+.ap-toast-success { border-left-color: var(--accent-2); }
+.ap-toast-success .ap-toast-icon { color: var(--accent-2-ink); }
+.ap-toast-success .ap-toast-progress { background: var(--accent-2); }
+
+.ap-toast-error { border-left-color: var(--danger); }
+.ap-toast-error .ap-toast-icon { color: var(--danger-ink); }
+.ap-toast-error .ap-toast-progress { background: var(--danger); }
+
+.ap-toast-info { border-left-color: var(--accent); }
+.ap-toast-info .ap-toast-icon { color: var(--accent-ink); }
+.ap-toast-info .ap-toast-progress { background: var(--accent); }
+
+.ap-toast-loading { border-left-color: var(--gold); }
+.ap-toast-loading .ap-toast-icon { color: var(--gold-ink); }
+
+.ap-toast-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ap-toast-spin 0.7s linear infinite;
+}
+
+@keyframes ap-toast-spin { to { transform: rotate(360deg); } }
+
+/* Extends .chip.chip-sm — tone only. */
+.ap-toasts-overflow {
+  align-self: flex-end;
+  background: var(--surface-1);
+  border-color: var(--border-subtle);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------
+   C. Empty state
+   ------------------------------------------------------------ */
+
+.ap-empty {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--sp-3);
+  min-height: 320px;
+  padding: var(--sp-12) var(--sp-6);
+  text-align: center;
+}
+
+.ap-empty-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  margin-bottom: var(--sp-1);
+  background:
+    radial-gradient(circle at 50% 40%, rgba(14, 165, 233, 0.16), transparent 68%),
+    var(--surface-1);
+  border: var(--hairline-default);
+  border-radius: var(--r-2xl);
+  color: var(--accent-ink);
+  box-shadow: var(--inset-top);
+}
+
+.ap-empty-mark > svg { width: 28px; height: 28px; }
+
+.ap-empty-title {
+  font-size: var(--text-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  color: var(--text-bright);
+}
+
+.ap-empty-body {
+  max-width: 46ch;
+  font-size: var(--text-sm);
+  line-height: var(--lh-relaxed);
+  color: var(--muted);
+}
+
+.ap-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.ap-empty-extra {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------
+   C. Board skeleton — mirrors the 11 x 11 play surface
+   ------------------------------------------------------------ */
+
+/* Mirrors .play-layout exactly, so swapping the skeleton for the real board
+   does not shift the page. */
+.ap-board-skeleton {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(360px, 400px);
+  align-items: start;
+  gap: var(--sp-5);
+}
+
+.ap-skel-stage {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+/* Same sizing rule as .wb-board — the column binds, the height budget caps.
+   A fixed width/height here overflowed its own column at every supported
+   viewport and scrolled the page sideways. */
+.ap-skel-board {
+  display: grid;
+  grid-template-rows: repeat(11, 1fr);
+  grid-template-columns: repeat(11, 1fr);
+  gap: 3px;
+  width: min(100%, var(--board-size, 720px));
+  height: auto;
+  aspect-ratio: 1 / 1;
+  padding: var(--sp-3);
+  background: var(--bg-deep);
+  border: var(--hairline);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--inset-well);
+}
+
+.ap-skel-tile { border-radius: var(--r-xs); }
+
+.ap-skel-corner { background: var(--surface-3); }
+
+.ap-skel-face {
+  grid-row: 2 / 11;
+  grid-column: 2 / 11;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--sp-3);
+  margin: var(--sp-2);
+  border-radius: var(--r-xl);
+  background: var(--surface-0);
+  border: 1px dashed var(--border-subtle);
+}
+
+.ap-skel-face-line { width: 42%; }
+.ap-skel-face-line-sm { width: 26%; }
+
+.ap-skel-status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+
+.ap-skel-sliver {
+  position: relative;
+  width: 220px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+}
+
+.ap-skel-sliver::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 38%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: ap-skel-sweep 1.5s var(--ease) infinite;
+}
+
+@keyframes ap-skel-sweep {
+  from { transform: translateX(-110%); }
+  to   { transform: translateX(300%); }
+}
+
+.ap-skel-rail { display: grid; gap: var(--sp-3); align-content: start; min-width: 0; }
+
+.ap-skel-panel { display: grid; gap: var(--sp-3); }
+
+.ap-skel-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  justify-content: space-between;
+}
+
+.ap-skel-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-1);
+  border: var(--hairline);
+  border-radius: var(--r-md);
+}
+
+.ap-skel-swatch { width: 28px; height: 28px; }
+
+/* ------------------------------------------------------------
+   D. Mobile gate — pure media query, no resize listeners
+   ------------------------------------------------------------ */
+
+.ap-mobile-gate { display: none; }
+
+@media (max-width: 1023px) {
+  .ap-mobile-gate {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-toast);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    place-items: center;
+    padding: var(--sp-6);
+    background:
+      radial-gradient(ellipse 720px 520px at 50% -10%, rgba(14, 165, 233, 0.14), transparent 62%),
+      radial-gradient(ellipse 620px 480px at 50% 112%, rgba(20, 184, 166, 0.10), transparent 60%),
+      var(--bg);
+    overflow-y: auto;
+  }
+
+  /* The gate owns the viewport — nothing behind it should scroll through. */
+  .ap-mobile-gate ~ * { display: none !important; }
+}
+
+.ap-mgate-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  max-width: 420px;
+  padding: var(--sp-10) var(--sp-6) var(--sp-8);
+  text-align: center;
+  background: var(--panel);
+  border: var(--hairline-default);
+  border-radius: var(--r-3xl);
+  box-shadow: var(--inset-top), var(--shadow-pop);
+  overflow: hidden;
+}
+
+/* Depth contours behind the mark — quiet, one pass, no animation loop */
+.ap-mgate-card::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  width: 320px;
+  height: 320px;
+  transform: translateX(-50%);
+  background:
+    radial-gradient(circle, rgba(14, 165, 233, 0.12) 0%, transparent 58%);
+  pointer-events: none;
+}
+
+.ap-mgate-mark {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: var(--surface-1);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--inset-top);
+}
+
+.ap-mgate-ring {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  border: 1px dashed var(--border-strong);
+  opacity: 0.7;
+  animation: ap-mgate-drift 26s linear infinite;
+}
+
+@keyframes ap-mgate-drift { to { transform: rotate(360deg); } }
+
+.ap-mgate-title {
+  position: relative;
+  font-size: var(--text-display);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  color: var(--text-bright);
+  text-wrap: balance;
+}
+
+.ap-mgate-text {
+  position: relative;
+  max-width: 34ch;
+  font-size: var(--text-sm);
+  line-height: var(--lh-relaxed);
+  color: var(--muted);
+}
+
+.ap-mgate-actions {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.ap-mgate-confirm {
+  min-height: 16px;
+  font-size: var(--text-xs);
+  letter-spacing: var(--ls-base);
+  color: var(--accent-2-ink);
+  opacity: 0;
+  transition: opacity var(--dur-3) var(--ease);
+}
+
+.ap-mgate-confirm.is-shown { opacity: 1; }
+
+.ap-mgate-foot {
+  position: relative;
+  padding-top: var(--sp-4);
+  margin-top: var(--sp-1);
+  width: 100%;
+  border-top: var(--hairline);
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}
+
+/* ------------------------------------------------------------
+   Reduced motion
+   ------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-toast { animation: none; }
+  .ap-toast-progress { animation: none; transform: scaleX(1); opacity: 0.35; }
+  .ap-toast-spinner { animation: none; }
+  .ap-skel-sliver::after { animation: none; transform: none; width: 100%; opacity: 0.45; }
+  .ap-mgate-ring { animation: none; }
+  .ap-toast-close:active { transform: none; }
+}
+
+/* ==================================================================
+   SERVICE BANNER — an honest strip for conditions the player cannot
+   fix. Quiet enough to live above every screen, loud enough to stop
+   an empty list being read as "nothing here yet".
+   ================================================================== */
+.ap-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in srgb, var(--ap-banner-tone) 30%, transparent);
+  background: color-mix(in srgb, var(--ap-banner-tone) 9%, transparent);
+  color: var(--text);
+}
+
+.ap-banner-warn { --ap-banner-tone: var(--warn); }
+.ap-banner-danger { --ap-banner-tone: var(--danger); }
+
+.ap-banner-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--ap-banner-tone);
+}
+
+.ap-banner-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ap-banner-title {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+}
+
+.ap-banner-detail {
+  font-size: var(--text-meta);
+  line-height: var(--lh-snug);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.ap-banner .btn { flex: none; }

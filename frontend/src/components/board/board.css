@@ -1,0 +1,1010 @@
+/* =====================================================================
+   board.css — Whaleopoly game board  ·  Abyssal Protocol
+   Layout + presentation only. Tokens come from styles/tokens.css and
+   shared classes from styles/primitives.css.
+   ===================================================================== */
+
+.wb-board-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ---------------------------------------------------------------------
+   The board itself. Square, sized against the available viewport height
+   so the table never pushes the page into a scroll.
+   --------------------------------------------------------------------- */
+.wb-board {
+  /* geometry */
+  --wb-size: clamp(420px, calc(var(--vhSafe) - 150px), 1080px);
+  --wb-pad: 8px;
+  --wb-gap: 3px;
+  --wb-bar: 7px;
+  --wb-stripe: 3px;
+
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.42fr repeat(9, 1fr) 1.42fr;
+  grid-template-rows: 1.42fr repeat(9, 1fr) 1.42fr;
+  gap: var(--wb-gap);
+
+  width: min(100%, var(--wb-size));
+  aspect-ratio: 1 / 1;
+  padding: var(--wb-pad);
+  border-radius: var(--r-2xl);
+
+  /* felt: a lit table in a dark room */
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 50%, rgba(14, 165, 233, 0.05), transparent 70%),
+    linear-gradient(160deg, #071426 0%, #04101f 55%, #030b16 100%);
+  border: 1px solid var(--border-default);
+  box-shadow:
+    inset 0 0 60px rgba(0, 0, 0, 0.55),
+    var(--inset-top),
+    var(--shadow-3);
+}
+
+/* =====================================================================
+   TILE
+   ===================================================================== */
+.wb-tile {
+  container-type: size;
+  position: relative;
+  z-index: 1;
+
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+
+  appearance: none;
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  color: var(--text);
+
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0)),
+    var(--surface-1),
+    var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.45);
+
+  transition:
+    border-color var(--dur-3) var(--ease),
+    background-color var(--dur-3) var(--ease),
+    transform var(--dur-3) var(--ease),
+    box-shadow var(--dur-3) var(--ease);
+}
+
+/* Group tint — roughly 15% of the group colour washed over the face. */
+.wb-tile.has-group {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
+    linear-gradient(180deg, color-mix(in srgb, var(--wb-group) 15%, transparent), transparent 72%),
+    var(--bg-surface);
+}
+
+.wb-tile:hover {
+  border-color: var(--border-strong);
+  background-color: rgba(14, 165, 233, 0.07);
+  z-index: 4;
+}
+
+.wb-tile:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+  z-index: 6;
+}
+
+.wb-tile:active {
+  transform: scale(0.985);
+}
+
+/* Selected — the one place on the board (with the active token) that glows. */
+.wb-tile.is-selected {
+  border-color: var(--accent-bright);
+  transform: scale(1.05);
+  z-index: 7;
+  box-shadow:
+    inset 0 0 14px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(56, 189, 248, 0.55),
+    var(--glow-strong);
+}
+
+.wb-tile.is-selected:active {
+  transform: scale(1.03);
+}
+
+/* =====================================================================
+   FACE — the rotated content plane.
+   The tile box never rotates; the face does, so left/right names read
+   inward. Dimensions are swapped with container-query units.
+   ===================================================================== */
+.wb-face {
+  container-type: size;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+  padding: calc(var(--wb-bar) + 3px) 2px 4px;
+}
+
+.wb-tile[data-side='bottom'] .wb-face,
+.wb-tile[data-side='top'] .wb-face {
+  inset: 0;
+}
+
+.wb-tile[data-side='left'] .wb-face,
+.wb-tile[data-side='right'] .wb-face {
+  top: 50%;
+  left: 50%;
+  width: 100cqh;
+  height: 100cqw;
+}
+
+.wb-tile[data-side='left'] .wb-face {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.wb-tile[data-side='right'] .wb-face {
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+/* Top row: the centre-facing edge is the bottom edge. */
+.wb-tile[data-side='top']:not(.wb-tile-corner) .wb-face {
+  padding: 4px 2px calc(var(--wb-bar) + 3px);
+}
+
+/* Corners never rotate. Specificity has to beat the [data-side] rules above. */
+.wb-board .wb-tile.wb-tile-corner .wb-face {
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: auto;
+  height: auto;
+  transform: none;
+  padding: 5px 4px 5px;
+}
+
+/* Reserve the token strip only when someone is standing on the tile. */
+.wb-tile.has-tokens .wb-face {
+  padding-bottom: 16px;
+}
+
+.wb-tile.has-tokens-many .wb-face {
+  padding-bottom: 23px;
+}
+
+.wb-tile[data-side='top']:not(.wb-tile-corner).has-tokens .wb-face {
+  padding-bottom: calc(var(--wb-bar) + 3px);
+  padding-top: 17px;
+}
+
+.wb-tile[data-side='top']:not(.wb-tile-corner).has-tokens-many .wb-face {
+  padding-top: 24px;
+}
+
+/* =====================================================================
+   COLOUR GROUP BAR — bold, on the centre-facing edge
+   ===================================================================== */
+/* No bloom here. Twenty-two coloured group bars glowing at once is the
+   neon-gamer read the direction forbids, and it flattens the hierarchy the
+   selected tile's --glow-strong is supposed to own. The 7px saturated band
+   plus the 1px dark separator carry the colour on their own. */
+.wb-groupbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--wb-bar);
+  background: var(--wb-group);
+  border-bottom: 1px solid rgba(4, 10, 21, 0.5);
+}
+
+.wb-tile[data-side='top'] .wb-groupbar {
+  top: auto;
+  bottom: 0;
+  border-bottom: 0;
+  border-top: 1px solid rgba(4, 10, 21, 0.5);
+}
+
+/* =====================================================================
+   OWNER STRIPE — outer edge, 3px, player colour
+   ===================================================================== */
+.wb-owner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--wb-stripe);
+  background: var(--wb-owner-color);
+  box-shadow: 0 -1px 0 rgba(4, 10, 21, 0.6);
+}
+
+.wb-tile[data-side='top'] .wb-owner {
+  bottom: auto;
+  top: 0;
+  box-shadow: 0 1px 0 rgba(4, 10, 21, 0.6);
+}
+
+/* =====================================================================
+   NAME + PRICE
+   ===================================================================== */
+.wb-name {
+  max-width: 100%;
+  font-size: clamp(6.2px, calc(18.5cqw * var(--wb-name-scale, 1)), 11px);
+  font-weight: var(--fw-semibold);
+  line-height: 1.1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  text-wrap: balance;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: none;
+}
+
+.wb-sub {
+  font-size: clamp(7px, 17cqw, 10px);
+  font-weight: var(--fw-medium);
+  line-height: 1.2;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-tile.is-selected .wb-sub {
+  color: var(--accent-ink);
+}
+
+/* =====================================================================
+   KIND ACCENTS
+   ===================================================================== */
+.wb-tile-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1px;
+}
+
+.wb-icon {
+  width: clamp(11px, 27cqw, 17px);
+  height: clamp(11px, 27cqw, 17px);
+}
+
+.wb-icon-lg {
+  width: clamp(15px, 26cqw, 24px);
+  height: clamp(15px, 26cqw, 24px);
+}
+
+.wb-kind-rail .wb-tile-icon { color: var(--accent-ink); }
+.wb-kind-rail .wb-name { color: var(--tile-ink-rail); }
+
+.wb-kind-utility .wb-tile-icon { color: var(--accent-2-ink); }
+.wb-kind-utility .wb-name { color: var(--tile-ink-utility); }
+
+.wb-kind-tax .wb-tile-icon { color: var(--warn-ink); }
+.wb-kind-tax .wb-name { color: var(--tile-ink-tax); }
+.wb-kind-tax .wb-sub { color: var(--warn-ink); }
+
+.wb-kind-chance .wb-tile-icon { color: var(--gold-ink); }
+.wb-kind-chance .wb-name { color: var(--tile-ink-chance); }
+
+.wb-kind-chest .wb-tile-icon { color: var(--accent-ink); }
+.wb-kind-chest .wb-name { color: var(--tile-ink-rail); }
+
+.wb-kind-rail,
+.wb-kind-utility,
+.wb-kind-chance,
+.wb-kind-chest,
+.wb-kind-tax {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0)),
+    var(--surface-2),
+    var(--bg-surface);
+}
+
+/* =====================================================================
+   HOUSES / HOTEL
+   ===================================================================== */
+.wb-build {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 7px;
+  margin-bottom: 1px;
+}
+
+.wb-house {
+  width: 5px;
+  height: 5px;
+  border-radius: 1.5px;
+  background: var(--accent-2-bright);
+  border: 1px solid rgba(4, 10, 21, 0.55);
+}
+
+.wb-hotel {
+  width: 12px;
+  height: 6px;
+  border-radius: 1.5px;
+  background: linear-gradient(180deg, var(--gold-ink), var(--gold));
+  border: 1px solid rgba(4, 10, 21, 0.6);
+}
+
+/* =====================================================================
+   MORTGAGED
+   ===================================================================== */
+.wb-tile.is-mortgaged .wb-face {
+  filter: saturate(0.18) brightness(0.82);
+}
+
+.wb-tile.is-mortgaged .wb-face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(249, 115, 22, 0.14) 0 3px,
+    transparent 3px 8px
+  );
+}
+
+.wb-mortgaged-tag {
+  position: relative;
+  z-index: 2;
+  margin-top: 2px;
+  /* The tile clips its own overflow, so a tag wider than the tile loses its
+     first and last letters ("MORTGAGED" read as "ORTGAGED" at the 1024px
+     floor). Constrain it to the tile and drop the tracking that pushed it
+     over — the word has to survive the narrowest supported tile. */
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 2px;
+  border-radius: var(--r-xs);
+  background: rgba(249, 115, 22, 0.22);
+  color: var(--tile-ink-mortgaged);
+  font-size: clamp(5.6px, 13cqw, 8px);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.wb-mort-short { display: none; }
+
+/* Below ~52px of tile width "Mortgaged" cannot fit at a legible size, so it
+   truncates mid-word. Swap to an abbreviation instead — the hatch and the
+   desaturation already carry the meaning; the tag only has to confirm it.
+   The full word stays in the DOM for assistive tech. */
+@container (max-width: 52px) {
+  .wb-mortgaged-tag { letter-spacing: 0; padding: 0 1px; }
+  .wb-mort-full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .wb-mort-short { display: inline; }
+}
+
+/* =====================================================================
+   PLAYER TOKENS — up to six on a single tile, tucked at the outer edge
+   ===================================================================== */
+.wb-tokens {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 4px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: center;
+  align-content: end;
+  gap: 2px;
+}
+
+.wb-tokens[data-count='1'],
+.wb-tokens[data-count='2'] {
+  grid-template-columns: repeat(2, auto);
+}
+
+.wb-tile[data-side='top']:not(.wb-tile-corner) .wb-tokens {
+  bottom: auto;
+  top: 5px;
+  align-content: start;
+}
+
+.wb-tile-corner .wb-tokens {
+  top: auto;
+  bottom: 5px;
+}
+
+.wb-corner-tokens {
+  display: contents;
+}
+
+.wb-tokens[data-count='4'],
+.wb-tokens[data-count='5'],
+.wb-tokens[data-count='6'] {
+  gap: 1px;
+}
+
+.wb-tokens[data-count='4'] .wb-token,
+.wb-tokens[data-count='5'] .wb-token,
+.wb-tokens[data-count='6'] .wb-token {
+  width: 7px;
+  height: 7px;
+  border-width: 1px;
+}
+
+.wb-token {
+  position: relative;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--wb-token-color);
+  border: 1.5px solid rgba(4, 10, 21, 0.75);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--wb-token-color) 55%, transparent);
+}
+
+/* The active player's token — the loudest object on the board. */
+.wb-token.is-active {
+  z-index: 2;
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 0 10px color-mix(in srgb, var(--wb-token-color) 85%, transparent),
+    0 0 20px color-mix(in srgb, var(--wb-token-color) 45%, transparent);
+}
+
+.wb-token.is-active::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid var(--wb-token-color);
+  animation: wb-token-ring 1.9s var(--ease-out) infinite;
+}
+
+@keyframes wb-token-ring {
+  0% { transform: scale(0.7); opacity: 0.95; }
+  70% { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+/* =====================================================================
+   CORNERS
+   ===================================================================== */
+.wb-tile-corner {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    var(--surface-2),
+    var(--bg-surface);
+  border-color: var(--border-default);
+  z-index: 3;
+}
+
+.wb-corner-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.wb-corner-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wb-corner-name {
+  font-size: clamp(8px, 15cqw, 12px);
+  font-weight: var(--fw-bold);
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+}
+
+.wb-corner-sub {
+  font-size: clamp(6.6px, 12cqw, 10px);
+  font-weight: var(--fw-medium);
+  line-height: 1.2;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Start — gold */
+.wb-tile[data-id='0'] {
+  background:
+    linear-gradient(200deg, rgba(245, 158, 11, 0.16), rgba(245, 158, 11, 0.03) 62%),
+    var(--bg-surface);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+.wb-tile[data-id='0'] .wb-corner-icon { color: var(--gold-ink); }
+.wb-tile[data-id='0'] .wb-corner-sub { color: var(--gold-ink); }
+
+/* Free Stop — teal */
+.wb-tile[data-id='20'] {
+  background:
+    linear-gradient(160deg, rgba(20, 184, 166, 0.14), rgba(20, 184, 166, 0.03) 62%),
+    var(--bg-surface);
+  border-color: rgba(20, 184, 166, 0.28);
+}
+.wb-tile[data-id='20'] .wb-corner-icon { color: var(--accent-2-ink); }
+
+/* Go To Jail — danger */
+.wb-tile[data-id='30'] {
+  background:
+    linear-gradient(120deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.03) 62%),
+    var(--bg-surface);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+.wb-tile[data-id='30'] .wb-corner-icon { color: var(--danger-ink); }
+.wb-tile[data-id='30'] .wb-corner-sub { color: var(--danger-ink); }
+
+/* --- Jail / Just Visiting: one cell split on the diagonal ------------- */
+.wb-jail {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wb-jail-outer,
+.wb-jail-inner {
+  position: absolute;
+  inset: 0;
+}
+
+/* outer (lower-left) triangle — just visiting */
+.wb-jail-outer {
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+  background: linear-gradient(200deg, rgba(14, 165, 233, 0.07), transparent 70%);
+}
+
+/* inner (upper-right) triangle — the cell */
+.wb-jail-inner {
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  background: linear-gradient(150deg, rgba(122, 162, 196, 0.16), rgba(122, 162, 196, 0.04) 70%);
+  border-top: 1px solid rgba(14, 165, 233, 0.16);
+}
+
+.wb-jail::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 142%;
+  height: 1px;
+  background: var(--border-strong);
+  transform-origin: 0 0;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.wb-jail-cell {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  color: var(--muted);
+}
+
+.wb-jail-cell .wb-icon {
+  width: clamp(11px, 20cqw, 18px);
+  height: clamp(11px, 20cqw, 18px);
+}
+
+.wb-jail-cell-label {
+  font-size: clamp(7px, 13cqw, 10px);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  line-height: 1.1;
+}
+
+.wb-jail-visiting {
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
+  text-align: left;
+  font-size: clamp(6px, 11cqw, 9px);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  color: var(--text-dim);
+}
+
+.wb-tile[data-id='10'].has-tokens .wb-tokens {
+  left: auto;
+  right: 3px;
+  bottom: 3px;
+  justify-content: end;
+}
+
+/* =====================================================================
+   CENTRE HUD
+   ===================================================================== */
+.wb-centre {
+  position: relative;
+  grid-row: 2 / 11;
+  grid-column: 2 / 11;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(ellipse 80% 65% at 50% 45%, rgba(14, 165, 233, 0.07), transparent 72%),
+    radial-gradient(ellipse 55% 45% at 22% 78%, rgba(20, 184, 166, 0.05), transparent 70%),
+    linear-gradient(180deg, rgba(4, 12, 24, 0.9), rgba(3, 9, 18, 0.96));
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--inset-well);
+}
+
+.wb-watermark > svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.wb-watermark {
+  line-height: 0;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 54%;
+  max-width: 100%;
+  transform: translate(-50%, -50%);
+  opacity: 0.032;
+  filter: grayscale(0.6) brightness(1.3);
+  pointer-events: none;
+  user-select: none;
+}
+
+.wb-sonar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.wb-hud {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  height: 100%;
+  padding: clamp(10px, 3.4%, 20px);
+}
+
+/* --- top strip ------------------------------------------------------- */
+.wb-hud-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: 7px 11px;
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--inset-top);
+}
+
+.wb-pot {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.wb-pot-label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.wb-pot-value {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
+  color: var(--gold-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wb-turn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.wb-turn-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--wb-turn-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wb-turn-color) 20%, transparent);
+}
+
+.wb-turn-text {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- middle: dice + roll -------------------------------------------- */
+.wb-hud-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.wb-dice {
+  display: flex;
+  gap: var(--sp-3);
+}
+
+.wb-die {
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 2px;
+  width: 46px;
+  height: 46px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  background: linear-gradient(155deg, #12304e, #0b1f36 62%, #091a2e);
+  border: 1px solid var(--border-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    var(--shadow-2);
+}
+
+.wb-die.is-rolling {
+  animation: wb-roll 520ms cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
+}
+
+.wb-dice .wb-die.is-rolling:nth-child(2) {
+  animation-delay: 90ms;
+}
+
+@keyframes wb-roll {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  25% { transform: translate3d(-2px, -3px, 0) rotate(-9deg); }
+  50% { transform: translate3d(2px, 2px, 0) rotate(7deg); }
+  75% { transform: translate3d(-1px, 2px, 0) rotate(-5deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+}
+
+.wb-pip {
+  width: 7px;
+  height: 7px;
+  margin: auto;
+  border-radius: 50%;
+  background: var(--text-bright);
+  box-shadow: inset 0 -1px 1px rgba(4, 10, 21, 0.4);
+}
+
+.wb-pip-1 { grid-area: 1 / 1; }
+.wb-pip-2 { grid-area: 1 / 2; }
+.wb-pip-3 { grid-area: 1 / 3; }
+.wb-pip-4 { grid-area: 2 / 1; }
+.wb-pip-5 { grid-area: 2 / 2; }
+.wb-pip-6 { grid-area: 2 / 3; }
+.wb-pip-7 { grid-area: 3 / 1; }
+.wb-pip-8 { grid-area: 3 / 2; }
+.wb-pip-9 { grid-area: 3 / 3; }
+
+.wb-lastroll {
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border-default);
+  font-size: var(--text-meta);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wb-roll {
+  min-width: 168px;
+  letter-spacing: 0.04em;
+}
+
+.wb-roll-reason {
+  min-height: 15px;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  text-align: center;
+}
+
+.wb-roll-reason.is-hidden {
+  visibility: hidden;
+}
+
+/* --- bottom strip: selected tile inspector --------------------------- */
+.wb-hud-bottom {
+  width: 100%;
+}
+
+.wb-inspect {
+  width: 100%;
+  padding: 9px 12px 10px;
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--inset-top);
+  text-align: left;
+}
+
+.wb-inspect-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding-bottom: 7px;
+  margin-bottom: 7px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.wb-inspect-swatch {
+  flex: none;
+  width: 4px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--wb-group);
+}
+
+.wb-inspect-swatch.is-plain {
+  background: var(--border-strong);
+}
+
+.wb-inspect-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wb-inspect-flag {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  background: var(--warn-soft);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  color: var(--warn-ink);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+}
+
+.wb-inspect-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+}
+
+.wb-inspect-cell {
+  min-width: 0;
+}
+
+.wb-inspect-key {
+  margin: 0 0 2px;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.wb-inspect-val {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wb-inspect-owner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.wb-inspect-owner-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--wb-owner-color);
+}
+
+/* =====================================================================
+   Tighter board — small laptops (>= 1024px is the supported floor)
+   ===================================================================== */
+@media (max-width: 1200px) {
+  .wb-board {
+    --wb-pad: 6px;
+    --wb-gap: 2px;
+    --wb-bar: 6px;
+  }
+
+  .wb-die {
+    width: 40px;
+    height: 40px;
+    padding: 5px;
+  }
+
+  .wb-pip {
+    width: 6px;
+    height: 6px;
+  }
+
+  .wb-roll {
+    min-width: 148px;
+  }
+}
+
+/* =====================================================================
+   Reduced motion
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .wb-tile,
+  .wb-tile.is-selected {
+    transition: none;
+  }
+
+  .wb-die.is-rolling {
+    animation: none;
+  }
+
+  .wb-token.is-active::after {
+    animation: none;
+    opacity: 0.85;
+    inset: -3px;
+  }
+}

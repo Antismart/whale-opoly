@@ -5,11 +5,23 @@ export type Player = {
 }
 
 export type Lobby = {
+  /**
+   * The contract's game id. Optimistic rows created locally before the chain
+   * has assigned one carry a NEGATIVE placeholder and `pending: true`; those
+   * ids are never sent to a contract call.
+   */
   gameId: number;
+  /** Display name of the host — a username locally, an address from chain. */
   host: string;
+  /** The host's wallet address, when known. Ownership is decided on this. */
+  hostAddress?: string;
   maxPlayers: number;
   players: number;
   entryEth: string;
+  /** True while the table exists only locally, waiting for the indexer. */
+  pending?: boolean;
+  /** Hash of the create transaction, when one has been submitted. */
+  transactionHash?: string;
 }
 
 // --- Card system types ---

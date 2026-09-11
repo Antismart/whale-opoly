@@ -1,0 +1,624 @@
+/* ============================================================
+   ABYSSAL PROTOCOL — modal overlays
+   Layout and treatment specific to the dialog layer only.
+   Everything reusable (buttons, fields, chips, rows, meters,
+   tables of tokens) comes from tokens.css + primitives.css.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   Backdrop
+   ------------------------------------------------------------ */
+
+.ovl-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-8) var(--sp-6);
+  background: rgba(2, 6, 14, 0.78);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  animation: ovl-fade var(--dur-4) var(--ease-out) both;
+}
+
+@keyframes ovl-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ------------------------------------------------------------
+   Panel
+   ------------------------------------------------------------ */
+
+.ovl-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: calc(var(--vhSafe) - 96px);
+  padding: var(--sp-5) var(--sp-6) var(--sp-5);
+  background:
+    linear-gradient(180deg, rgba(14, 165, 233, 0.05), rgba(14, 165, 233, 0) 220px),
+    var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  /* One top-surface radius across the product — see the radii note in
+     tokens.css. */
+  border-radius: var(--r-2xl);
+  /* Depth, not bloom. The panel used to glow alongside its own primary
+     button, which put two glowing objects on screen at once; the border
+     tone plus --shadow-pop lift it off the backdrop on their own. */
+  box-shadow: var(--inset-top), var(--shadow-pop);
+  outline: none;
+}
+
+.ovl-panel-sm { max-width: 440px; }
+.ovl-panel-md { max-width: 580px; }
+.ovl-panel-lg { max-width: 860px; }
+.ovl-panel-xl { max-width: 1040px; }
+
+.ovl-tone-teal { border-color: rgba(20, 184, 166, 0.28); }
+
+.ovl-tone-gold { border-color: rgba(245, 158, 11, 0.28); }
+
+.ovl-tone-danger {
+  border-color: rgba(239, 68, 68, 0.30);
+  background:
+    linear-gradient(180deg, rgba(239, 68, 68, 0.07), rgba(239, 68, 68, 0) 200px),
+    var(--bg-elevated);
+}
+
+/* Entrances */
+
+.ovl-enter-lift { animation: ovl-lift-in var(--dur-4) var(--ease-out) both; }
+
+@keyframes ovl-lift-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+.ovl-enter-card {
+  transform-origin: 50% 60%;
+  animation: ovl-card-in 320ms var(--ease-out) both;
+}
+
+@keyframes ovl-card-in {
+  from { opacity: 0; transform: perspective(1200px) rotateY(-18deg) translateY(14px) scale(0.96); }
+  60% { opacity: 1; }
+  to { opacity: 1; transform: perspective(1200px) rotateY(0deg) translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ovl-backdrop,
+  .ovl-enter-lift,
+  .ovl-enter-card {
+    animation: none;
+  }
+  .ovl-enter-card { transform: none; }
+}
+
+/* ------------------------------------------------------------
+   Header
+   ------------------------------------------------------------ */
+
+.ovl-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 28px;
+  margin-bottom: var(--sp-4);
+}
+
+.ovl-head-extra {
+  margin-left: auto;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.ovl-close { margin-left: auto; flex: none; }
+.ovl-head-extra + .ovl-close { margin-left: var(--sp-1); }
+
+/* Extends .chip.chip-sm — casing and tone only, no box of its own. */
+.ovl-tag {
+  flex: none;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+}
+
+.ovl-tag-accent { background: var(--accent-soft); border-color: rgba(14, 165, 233, 0.30); color: var(--accent-ink); }
+.ovl-tag-teal { background: var(--accent-2-soft); border-color: rgba(20, 184, 166, 0.30); color: var(--accent-2-ink); }
+.ovl-tag-gold { background: var(--gold-soft); border-color: rgba(245, 158, 11, 0.28); color: var(--gold-ink); }
+.ovl-tag-warn { background: var(--warn-soft); border-color: rgba(249, 115, 22, 0.30); color: var(--warn-ink); }
+.ovl-tag-danger { background: var(--danger-soft); border-color: rgba(239, 68, 68, 0.30); color: var(--danger-ink); }
+
+.ovl-drawnby { white-space: nowrap; }
+.ovl-player-name { font-weight: var(--fw-semibold); }
+
+/* ------------------------------------------------------------
+   Title block / body / actions
+   ------------------------------------------------------------ */
+
+.ovl-titleblock { margin-bottom: var(--sp-4); }
+.ovl-titleblock:empty { margin-bottom: 0; }
+.ovl-titleblock-center { text-align: center; }
+
+.ovl-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  color: var(--text-bright);
+}
+
+.ovl-subtitle {
+  margin: var(--sp-2) 0 0;
+  max-width: 62ch;
+  font-size: var(--text-sm);
+  line-height: var(--lh-base);
+  color: var(--muted);
+}
+
+.ovl-titleblock-center .ovl-subtitle { margin-inline: auto; }
+
+.ovl-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  gap: var(--sp-4);
+  align-content: start;
+  margin-inline: calc(var(--sp-6) * -1);
+  padding-inline: var(--sp-6);
+}
+
+.ovl-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex: none;
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: var(--hairline);
+}
+
+.ovl-actions-note {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: var(--text-meta);
+  line-height: var(--lh-snug);
+  color: var(--muted);
+}
+
+.ovl-actions-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+  flex: none;
+}
+
+/* ------------------------------------------------------------
+   1. Card modal
+   ------------------------------------------------------------ */
+
+.ovl-card-face {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-5);
+  text-align: center;
+  border: var(--hairline-default);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(ellipse 320px 200px at 50% 0%, rgba(14, 165, 233, 0.10), transparent 70%),
+    var(--surface-1);
+  box-shadow: var(--inset-top);
+}
+
+.ovl-card-chance { color: var(--accent); }
+
+.ovl-card-chest {
+  color: var(--accent-2);
+  background:
+    radial-gradient(ellipse 320px 200px at 50% 0%, rgba(20, 184, 166, 0.10), transparent 70%),
+    var(--surface-1);
+  border-color: rgba(20, 184, 166, 0.18);
+}
+
+.ovl-card-icon {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  background: rgba(4, 10, 21, 0.55);
+  opacity: 0.95;
+}
+
+.ovl-card-chance .ovl-card-icon { border-color: rgba(14, 165, 233, 0.28); }
+.ovl-card-chest .ovl-card-icon { border-color: rgba(20, 184, 166, 0.28); }
+
+.ovl-card-text {
+  margin: 0;
+  max-width: 34ch;
+  font-size: var(--text-base);
+  line-height: var(--lh-relaxed);
+  color: var(--text);
+}
+
+.chip.ovl-effect {
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  padding: 7px 14px;
+  white-space: normal;
+  text-align: center;
+}
+
+.ovl-effect.chip .num { color: inherit; font-variant-numeric: tabular-nums; }
+
+.ovl-effect.ovl-effect-teal { background: var(--accent-2-soft); border-color: rgba(20, 184, 166, 0.32); color: var(--accent-2-ink); }
+.ovl-effect.ovl-effect-danger { background: var(--danger-soft); border-color: rgba(239, 68, 68, 0.32); color: var(--danger-ink); }
+.ovl-effect.ovl-effect-accent { background: var(--accent-soft); border-color: rgba(14, 165, 233, 0.32); color: var(--accent-ink); }
+.ovl-effect.ovl-effect-warn { background: var(--warn-soft); border-color: rgba(249, 115, 22, 0.32); color: var(--warn-ink); }
+.ovl-effect.ovl-effect-neutral { color: var(--text); }
+
+/* ------------------------------------------------------------
+   2. Trade modal
+   ------------------------------------------------------------ */
+
+.ovl-trade {
+  display: grid;
+  grid-template-columns: 1fr 44px 1fr;
+  gap: var(--sp-3);
+  align-items: stretch;
+}
+
+.ovl-trade-side {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: var(--sp-4);
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  box-shadow: var(--inset-top);
+}
+
+.ovl-trade-head { display: grid; gap: var(--sp-2); }
+
+.ovl-trade-eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ovl-trade-list {
+  display: grid;
+  gap: var(--sp-2);
+  align-content: start;
+  min-height: 168px;
+  max-height: 232px;
+  padding-right: var(--sp-1);
+}
+
+/* Read-only mirror of .row-item for the other player's holdings */
+.ovl-trade-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3);
+  background: var(--surface-0);
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  cursor: default;
+}
+
+.ovl-trade-swap {
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  justify-items: center;
+  gap: var(--sp-2);
+  padding-block: var(--sp-4);
+}
+
+.ovl-trade-rule {
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(180deg, transparent, var(--border-default), transparent);
+}
+
+.ovl-trade-swapmark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: var(--hairline-default);
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.ovl-trade-cash {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  box-shadow: var(--inset-top);
+}
+
+.ovl-trade-cash .field-row { flex-wrap: wrap; align-items: center; }
+.ovl-trade-cash .input-num { max-width: 180px; }
+
+.ovl-hints { display: grid; gap: var(--sp-2); }
+
+.ovl-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-lg);
+  border: 1px solid transparent;
+  font-size: var(--text-sm);
+  line-height: var(--lh-base);
+}
+
+.ovl-hint .swatch { margin-top: 3px; }
+
+.ovl-hint-teal { background: var(--accent-2-soft); border-color: rgba(20, 184, 166, 0.26); color: var(--accent-2-ink); }
+.ovl-hint-warn { background: var(--warn-soft); border-color: rgba(249, 115, 22, 0.26); color: var(--warn-ink); }
+
+/* ------------------------------------------------------------
+   3. Auction modal
+   ------------------------------------------------------------ */
+
+.ovl-auction-bar {
+  height: 6px;
+  border-radius: var(--r-pill);
+  opacity: 0.9;
+}
+
+/* Whaleopoly's auction is a single-bidder buy-in: the tile is yours at the
+   price you name, at or above the list price. There is no competing bid,
+   no high bidder and no countdown, so this block shows the list price and
+   nothing that would imply an opponent is in the room. */
+.ovl-auction-open {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  text-align: center;
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(ellipse 300px 140px at 50% 0%, rgba(245, 158, 11, 0.08), transparent 70%),
+    var(--surface-1);
+  box-shadow: var(--inset-top);
+}
+
+.ovl-auction-amount {
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.ovl-auction-grid {
+  display: grid;
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.ovl-bid-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid rgba(4, 10, 21, 0.6);
+}
+
+.ovl-trade-list .empty { padding: var(--sp-5) var(--sp-4); }
+
+.ovl-auction-field { align-content: start; max-width: 320px; }
+.ovl-auction-steps { flex-wrap: wrap; }
+
+/* ------------------------------------------------------------
+   4. Victory modal
+   ------------------------------------------------------------ */
+
+/* The hero has to leave room for a SIX-player standings table inside the
+   modal's height cap — at 900px tall it was eating enough that the last
+   finisher fell below the scroll edge, which is the one row a losing player
+   looks for. Trimmed so a full table fits without scrolling. */
+.ovl-victory {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-4) var(--sp-4) var(--sp-4);
+  text-align: center;
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(ellipse 360px 200px at 50% 0%, rgba(245, 158, 11, 0.10), transparent 70%),
+    var(--surface-1);
+  box-shadow: var(--inset-top);
+}
+
+.ovl-victory-mark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  background: rgba(4, 10, 21, 0.55);
+  margin-bottom: var(--sp-1);
+}
+
+.ovl-victory-title {
+  font-size: var(--text-xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+  color: var(--text-bright);
+}
+
+.ovl-victory-winner {
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-base);
+}
+
+.ovl-victory-balance {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-05);
+  margin-top: var(--sp-2);
+}
+
+.ovl-victory-amount {
+  font-size: var(--text-lg);
+  font-weight: var(--fw-bold);
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.ovl-txlink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  border: var(--hairline-default);
+  background: var(--surface-1);
+  color: var(--accent-ink);
+  font-size: var(--text-meta);
+  text-decoration: none;
+  transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease), color var(--dur-2) var(--ease);
+}
+
+.ovl-txlink:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--accent-bright);
+}
+
+.ovl-txlink:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ovl-standings { display: grid; gap: var(--sp-2); }
+.ovl-standings-head { display: flex; align-items: center; gap: var(--sp-2); }
+
+.ovl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.ovl-table th {
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+  border-bottom: var(--hairline);
+}
+
+.ovl-table td {
+  padding: var(--sp-3);
+  color: var(--text);
+  border-bottom: var(--hairline);
+  vertical-align: middle;
+}
+
+.ovl-table tbody tr:last-child td { border-bottom: 0; }
+
+.ovl-table tbody tr.is-winner td {
+  background: var(--gold-soft);
+  color: var(--text-bright);
+}
+
+.ovl-table tbody tr.is-winner td:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); }
+.ovl-table tbody tr.is-winner td:last-child { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+
+.ovl-col-rank { width: 40px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ovl-col-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.ovl-standing-player {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-weight: var(--fw-medium);
+}
+
+/* ------------------------------------------------------------
+   5. Bankruptcy modal
+   ------------------------------------------------------------ */
+
+.ovl-bankrupt {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  text-align: center;
+}
+
+.ovl-bankrupt-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--danger);
+}
+
+.ovl-bankrupt-lead {
+  margin: 0;
+  max-width: 40ch;
+  font-size: var(--text-base);
+  line-height: var(--lh-relaxed);
+  color: var(--text);
+}
+
+.ovl-bankrupt-kv {
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid rgba(239, 68, 68, 0.20);
+  border-radius: var(--r-lg);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.ovl-bankrupt-debt { color: var(--danger-ink); font-weight: var(--fw-semibold); }
+
+.ovl-bankrupt-note {
+  margin: 0;
+  max-width: 46ch;
+  line-height: var(--lh-base);
+}
+
+/* ------------------------------------------------------------
+   NARROW — the shared <= 1200px breakpoint (see App.css).
+   The trade dialog is the only overlay wide enough to need it.
+   ------------------------------------------------------------ */
+
+@media (max-width: 1200px) {
+  .ovl-trade { grid-template-columns: 1fr 34px 1fr; gap: var(--sp-2); }
+  .ovl-trade-side { padding: var(--sp-3); }
+}

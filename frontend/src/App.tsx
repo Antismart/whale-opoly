@@ -1,34 +1,205 @@
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import './App.css'
-import { WalletButton } from './WalletButton'
 import { useDojoSDK, useEntityQuery, useModels } from "@dojoengine/sdk/react"
 import { ToriiQueryBuilder, MemberClause } from "@dojoengine/sdk"
 import { useAccount } from "@starknet-react/core"
 import { CairoCustomEnum, RpcProvider } from "starknet"
 import { useToast } from './useToast'
-import { MonopolyBoard } from './components/MonopolyBoard'
-import { PlayersPanel } from './components/PlayersPanel'
-import { TileDetails } from './components/TileDetails'
-import { ActionBar } from './components/ActionBar'
-import { OnboardPanel } from './components/OnboardPanel'
-import { DiceIcon, BoardIcon, EventIcon } from './components/Icons'
-import { GameManual } from './components/GameManual'
+
+// Abyssal Protocol UI
+import { AppShell } from './components/shell/AppShell'
+import { ShellIcons } from './components/shell/shellIcons'
+import { WalletMenu } from './components/wallet/WalletMenu'
+import { LobbyScreen } from './screens/LobbyScreen'
+import { HarborScreen } from './screens/HarborScreen'
+import { ManualScreen } from './screens/ManualScreen'
+import { GameBoard } from './components/board/GameBoard'
+import { ControlRail } from './components/rail/ControlRail'
+import { CardModal, TradeModal, AuctionModal, VictoryModal, BankruptcyModal } from './components/overlays/Modals'
+import type { TradeProperty, FinalStanding } from './components/overlays/Modals'
+import { ToastStack, MobileGate, NoActiveGame, WalletDisconnected, ServiceBanner } from './components/states/States'
+import { useToriiStatus } from './useToriiStatus'
+
 import { monoTiles } from './data/boardTiles'
-import type { Lobby, Card } from './types'
+import { money } from './format'
+import { txErrorReason } from './txError'
+import type { Lobby, Card, Player } from './types'
 
 // Utility
 function shuffle<T>(arr: T[]): T[] { return [...arr].sort(()=>Math.random()-0.5) }
 
+/* ====================================================================
+   CHAIN DECODING
+
+   `useModels` in @dojoengine/sdk 1.8.13 is
+   `getEntitiesByModel(ns, name).map(i => ({ [i.entityId]: i.models[ns][name] }))`
+   — an ARRAY of `{ entityId: model }` wrappers, NOT an array of models.
+   Reading `.status` / `.player` / `.owner` straight off a wrapper gives
+   `undefined` for every field, so everything below unwraps first and then
+   decodes against the real model shapes in src/bindings/models.gen.ts.
+   ==================================================================== */
+
+type ChainModel = Record<string, unknown>
+
+function unwrapModels(wrappers: unknown): ChainModel[] {
+  if (!Array.isArray(wrappers)) return []
+  const out: ChainModel[] = []
+  for (const wrapper of wrappers) {
+    if (!wrapper || typeof wrapper !== 'object') continue
+    for (const model of Object.values(wrapper as Record<string, unknown>)) {
+      if (model && typeof model === 'object') out.push(model as ChainModel)
+    }
+  }
+  return out
+}
+
+/** Active variant name of a Cairo enum (GameStatus, GameTier, …). */
+function enumVariant(value: unknown): string | undefined {
+  if (!value) return undefined
+  if (typeof value === 'string') return value
+  const candidate = value as { activeVariant?: () => string; variant?: Record<string, unknown> }
+  if (typeof candidate.activeVariant === 'function') {
+    try { return candidate.activeVariant() } catch { /* fall through to .variant */ }
+  }
+  const variant = candidate.variant
+  if (variant && typeof variant === 'object') {
+    const hit = Object.entries(variant).find(([, v]) => v !== undefined && v !== null)
+    if (hit) return hit[0]
+  }
+  return undefined
+}
+
+/** Contents of a CairoOption, or undefined when it is None. */
+function optionValue(value: unknown): string | undefined {
+  if (value == null) return undefined
+  if (typeof value === 'string') return value
+  const candidate = value as {
+    isSome?: () => boolean
+    unwrap?: () => unknown
+    Some?: unknown
+    variant?: { Some?: unknown }
+  }
+  if (typeof candidate.isSome === 'function' && typeof candidate.unwrap === 'function') {
+    try { return candidate.isSome() ? String(candidate.unwrap()) : undefined } catch { return undefined }
+  }
+  if (candidate.Some != null) return String(candidate.Some)
+  if (candidate.variant?.Some != null) return String(candidate.variant.Some)
+  return undefined
+}
+
+function toNumber(value: unknown): number {
+  if (typeof value === 'number') return value
+  if (typeof value === 'bigint') return Number(value)
+  if (typeof value === 'string') { const n = Number(value); return Number.isFinite(n) ? n : 0 }
+  return 0
+}
+
+/** Padding- and case-tolerant address comparison key. */
+function addressKey(value: string | undefined): string {
+  if (!value) return ''
+  try { return BigInt(value).toString(16) } catch { return value.toLowerCase() }
+}
+
+/** Value signature used to tell whether the chain data actually changed. */
+function signature(value: unknown): string {
+  try {
+    return JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)) ?? ''
+  } catch {
+    // Unserialisable payload: fall back to "always different". The setGame
+    // bail-out below still stops this turning into a render loop.
+    return `~${Math.random()}`
+  }
+}
+
+/* The four entry tiers. There is no other tier, and no 0.05. */
+const TIER_ETH: Record<string, string> = { Bronze: '0.01', Silver: '0.1', Gold: '1', Platinum: '10' }
+const TIER_BY_ENTRY: Record<string, string> = { '0.01': 'Bronze', '0.1': 'Silver', '1': 'Gold', '10': 'Platinum' }
+const MAX_SEATS = 6
+
+type ChainSnapshot = {
+  lobbies: Lobby[]
+  positions: Record<string, number>
+  balances: Record<string, number>
+  ownership: Record<number, string | undefined>
+}
+
+const EMPTY_CHAIN: ChainSnapshot = { lobbies: [], positions: {}, balances: {}, ownership: {} }
+
+function decodeChain(
+  gameStates: unknown,
+  playerPositions: unknown,
+  gameCurrencies: unknown,
+  properties: unknown,
+  gameId: number | undefined,
+): ChainSnapshot {
+  const inGame = (model: ChainModel) => gameId === undefined || toNumber(model.game_id) === gameId
+
+  // GameState carries `players: Array<ContractAddress>` and an `entry_tier`
+  // enum — there is no `host`, `max_players` or `entry_fee` member, and the
+  // waiting status is called `Lobby`.
+  const lobbies: Lobby[] = unwrapModels(gameStates)
+    .filter((state) => enumVariant(state.status) === 'Lobby')
+    .map((state) => {
+      const seated = Array.isArray(state.players) ? (state.players as unknown[]).map(String) : []
+      const tier = enumVariant(state.entry_tier) ?? 'Bronze'
+      return {
+        gameId: toNumber(state.game_id),
+        host: seated[0] ?? 'Unknown',
+        hostAddress: seated[0],
+        maxPlayers: MAX_SEATS,
+        players: seated.length,
+        entryEth: TIER_ETH[tier] ?? TIER_ETH.Bronze,
+      }
+    })
+
+  const positions: Record<string, number> = {}
+  for (const model of unwrapModels(playerPositions)) {
+    if (!inGame(model) || typeof model.player !== 'string') continue
+    positions[model.player] = toNumber(model.position)
+  }
+
+  const balances: Record<string, number> = {}
+  for (const model of unwrapModels(gameCurrencies)) {
+    if (!inGame(model) || typeof model.player !== 'string') continue
+    balances[model.player] = toNumber(model.balance)
+  }
+
+  const ownership: Record<number, string | undefined> = {}
+  for (const model of unwrapModels(properties)) {
+    if (!inGame(model)) continue
+    const owner = optionValue(model.owner)
+    if (owner) ownership[toNumber(model.property_id)] = owner
+  }
+
+  return { lobbies, positions, balances, ownership }
+}
+
+function sameRecord(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const aKeys = Object.keys(a)
+  if (aKeys.length !== Object.keys(b).length) return false
+  return aKeys.every((k) => a[k] === b[k])
+}
+
+const PLAYER_COLORS = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#a78bfa', '#fb923c']
+/** Fallback seat colour — --muted, so it still clears 4.5:1 as rail text. */
+const NO_PLAYER_COLOR = '#7aa2c4'
+
 function App() {
   // --- Official Dojo SDK integration ---
   const { client } = useDojoSDK();
+
+  /* The SDK's entity hooks return void, so an unreachable indexer is
+     indistinguishable from an empty world. Probe it directly. */
+  const torii = useToriiStatus();
   const [currentGameId, setCurrentGameId] = useState<number | undefined>();
-  
+
   // Local state for lobbies (optimistic updates)
   const [localLobbies, setLocalLobbies] = useState<Lobby[]>([]);
-  const [nextGameId, setNextGameId] = useState(1);
-  
+  /** Placeholder ids for optimistic rows. Negative, so a real game id can
+      never collide with one and no contract call can ever receive one. */
+  const pendingIdRef = useRef(-1);
+
   // Subscribe to game states using official SDK
   useEntityQuery(
     new ToriiQueryBuilder()
@@ -63,13 +234,9 @@ function App() {
   const gameCurrencies = useModels("whale_opoly-GameCurrency");
   const properties = useModels("whale_opoly-Property");
 
-  // Extract game data from Dojo entities
-  const gameEntities = Object.values(gameStates);
-
   // Local game state — the single source of truth for the UI.
   // When Dojo entity subscriptions start returning real data, the
   // useEffect below will sync chain state into this local state.
-  const PLAYER_COLORS = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#a78bfa', '#fb923c'];
   const [game, setGame] = useState({
     players: [] as { id: string; name: string; color: string }[],
     currentIdx: 0,
@@ -79,97 +246,115 @@ function App() {
     houses: {} as Record<number, number>,
   });
 
-  // Sync from blockchain when Dojo entities become available
+  /* Every `useModels` call builds a fresh array of fresh objects, so all four
+     selector results have a NEW IDENTITY on every render. Keying the decode
+     on a value signature gives the sync effect below a dependency that only
+     changes when the data itself changes — without it, effect → setState →
+     render → effect is an unbounded loop the moment Torii returns anything. */
+  const chainRef = useRef<{ key: string; data: ChainSnapshot }>({ key: '', data: EMPTY_CHAIN });
+  const chainKey = signature([gameStates, playerPositions, gameCurrencies, properties, currentGameId ?? null]);
+  if (chainKey !== chainRef.current.key) {
+    chainRef.current = {
+      key: chainKey,
+      data: decodeChain(gameStates, playerPositions, gameCurrencies, properties, currentGameId),
+    };
+  }
+  const chain = chainRef.current.data;
+
+  // Sync from blockchain when Dojo entities become available.
   useEffect(() => {
-    const gameEntries = Object.values(gameStates);
-    if (gameEntries.length === 0) return; // No blockchain data yet
+    const { positions, balances, ownership } = chain;
+    if (
+      Object.keys(positions).length === 0 &&
+      Object.keys(balances).length === 0 &&
+      Object.keys(ownership).length === 0
+    ) return;
 
-    const currentGame = gameEntries.find((g: any) => g.game_id === currentGameId) || gameEntries[0];
-    if (!currentGame) return;
+    // Returning `prev` unchanged lets React bail out of the re-render, which
+    // is the second half of the loop guard above.
+    setGame(prev => {
+      const nextPositions = { ...prev.positions, ...positions };
+      const nextBalances = { ...prev.balances, ...balances };
+      const nextOwnership = { ...prev.ownership, ...ownership };
+      if (
+        sameRecord(prev.positions, nextPositions) &&
+        sameRecord(prev.balances, nextBalances) &&
+        sameRecord(prev.ownership as Record<string, unknown>, nextOwnership as Record<string, unknown>)
+      ) return prev;
+      return { ...prev, positions: nextPositions, balances: nextBalances, ownership: nextOwnership };
+    });
+  }, [chain]);
 
-    // Build positions/balances from chain data
-    const chainPositions = Object.fromEntries(
-      Object.values(playerPositions).map((pos: any) => [pos.player, pos.position])
+  /* Merge chain tables with the optimistic rows this browser created.
+     A pending row has no real game id yet, so it is reconciled by HOST
+     ADDRESS: the moment a chain table hosted by this wallet appears, that
+     row IS this table, carrying the id the contract actually assigned. */
+  const lobbies: Lobby[] = useMemo(() => {
+    const chainHosts = new Set(chain.lobbies.map(l => addressKey(l.hostAddress)));
+    const unconfirmed = localLobbies.filter(local =>
+      local.pending
+        ? !chainHosts.has(addressKey(local.hostAddress))
+        : !chain.lobbies.some(remote => remote.gameId === local.gameId)
     );
-    const chainBalances = Object.fromEntries(
-      Object.values(gameCurrencies).map((c: any) => [c.player, c.balance])
-    );
-    const chainOwnership = Object.fromEntries(
-      Object.values(properties).map((prop: any) => [prop.property_id, prop.owner])
-    );
+    return [...chain.lobbies, ...unconfirmed];
+  }, [chain, localLobbies]);
 
-    if (Object.keys(chainPositions).length > 0 || Object.keys(chainBalances).length > 0) {
-      setGame(prev => ({
-        ...prev,
-        positions: { ...prev.positions, ...chainPositions },
-        balances: { ...prev.balances, ...chainBalances },
-        ownership: { ...prev.ownership, ...chainOwnership },
-      }));
-    }
-  }, [gameStates, playerPositions, gameCurrencies, properties, currentGameId]);
-  
-  // Combine real lobbies from blockchain with local optimistic lobbies
-  const blockchainLobbies: Lobby[] = gameEntities
-    .filter((gameState: any) => gameState.status === "Waiting")
-    .map((gameState: any) => ({
-      gameId: gameState.game_id,
-      host: gameState.host,
-      maxPlayers: gameState.max_players,
-      players: gameState.current_players,
-      entryEth: (Number(gameState.entry_fee) / 1e18).toString()
-    }));
-  
-  // Merge blockchain and local lobbies, prioritizing blockchain data
-  const lobbies: Lobby[] = [
-    ...blockchainLobbies,
-    ...localLobbies.filter(local => 
-      !blockchainLobbies.some(blockchain => blockchain.gameId === local.gameId)
-    )
-  ];
-  
+  /* Garbage-collect optimistic rows the chain has caught up with. This
+     replaces a 30-second interval that captured the first render's closure
+     and therefore filtered against a permanently empty array. */
+  useEffect(() => {
+    if (chain.lobbies.length === 0) return;
+    const chainHosts = new Set(chain.lobbies.map(l => addressKey(l.hostAddress)));
+    setLocalLobbies(prev => {
+      const next = prev.filter(local =>
+        local.pending
+          ? !chainHosts.has(addressKey(local.hostAddress))
+          : !chain.lobbies.some(remote => remote.gameId === local.gameId)
+      );
+      return next.length === prev.length ? prev : next;
+    });
+  }, [chain]);
+
   // Get wallet account
   const { account } = useAccount();
   
   // Real Dojo contract actions
   const createLobby = async (maxPlayers: number, host: string, entryEth: string) => {
     if (!account) {
-      toastError('Connect wallet first');
+      toastError('Connect a wallet first');
       return null;
     }
     if (!client) {
-      toastError('Dojo client not available');
+      toastError('The Dojo client is not ready yet');
       return null;
     }
 
     setActionLoading('creating');
 
-    // Generate unique game ID for this lobby
-    const gameId = nextGameId;
-    setNextGameId(prev => prev + 1);
-    
-    // Add optimistic lobby immediately
+    /* The CONTRACT assigns the game id — this row only holds a negative
+       placeholder until the indexer hands the real one back, and is marked
+       pending so join / start / cancel stay disabled on it. Nothing here is
+       ever passed to a contract call. */
+    const placeholderId = pendingIdRef.current--;
     const optimisticLobby: Lobby = {
-      gameId,
+      gameId: placeholderId,
       host,
+      hostAddress: account.address,
       maxPlayers,
-      players: 1, // Creator counts as first player
-      entryEth
+      players: 1, // Creator takes the first seat
+      entryEth,
+      pending: true,
     };
-    
+
     setLocalLobbies(prev => [optimisticLobby, ...prev]);
-    
+
     try {
-      // Map entryEth to the correct tier
-      const tierName = entryEth === '0.01' ? 'Bronze'
-        : entryEth === '0.1' ? 'Silver'
-        : entryEth === '1' ? 'Gold'
-        : entryEth === '10' ? 'Platinum'
-        : 'Bronze';
+      const tierName = TIER_BY_ENTRY[entryEth] ?? 'Bronze';
       const tier = new CairoCustomEnum({ [tierName]: {} });
       const result = await client.game_manager.createGame(account, tier, maxPlayers);
-      
+
       setActionLoading(null);
-      toastSuccess('Lobby created on-chain!');
+      toastSuccess('Table created on-chain', result.transaction_hash);
 
       // Add creator as first player in local game state
       const creatorId = account.address;
@@ -184,41 +369,42 @@ function App() {
         };
       });
 
-      // Show success message to user
-      log('good', '🎉 Lobby Created Successfully!', `Transaction hash: ${result.transaction_hash?.slice(0, 10)}... | Players: ${maxPlayers} | Entry: ${entryEth} ETH`);
-      
-      // Update the optimistic lobby with transaction hash
-      setLocalLobbies(prev => 
-        prev.map(lobby => 
-          lobby.gameId === gameId 
+      log('good', 'Table created', `${tierName} table, up to ${maxPlayers} players, ${entryEth} ETH entry`);
+
+      // Keep the transaction hash on the row until the chain row replaces it
+      setLocalLobbies(prev =>
+        prev.map(lobby =>
+          lobby.gameId === placeholderId
             ? { ...lobby, transactionHash: result.transaction_hash }
             : lobby
         )
       );
-      
-      return { gameId, success: true, transactionHash: result.transaction_hash };
+
+      return { success: true, transactionHash: result.transaction_hash };
     } catch (error) {
       console.error('Create game failed:', error);
       setActionLoading(null);
-      toastError('Failed to create lobby');
+      toastError(txErrorReason(error, 'Could not create the table'));
 
       // Remove the optimistic lobby on failure
-      setLocalLobbies(prev => prev.filter(lobby => lobby.gameId !== gameId));
+      setLocalLobbies(prev => prev.filter(lobby => lobby.gameId !== placeholderId));
 
       return null;
     }
   };
-  
+
   const joinLobby = async (gameId: number, username: string) => {
-    if (!account || !client) { toastError('Connect wallet first'); return null; }
+    if (!account || !client) { toastError('Connect a wallet first'); return null; }
+    if (gameId < 0) { toastError('This table is still being confirmed on-chain'); return null; }
     setActionLoading('joining');
 
     // Check if user already in this game
     if (game.players.some(p => p.id === account.address)) {
-      log('warn', '⚠️ Already in Game', 'You are already a player in this game');
+      log('warn', 'Already seated', 'You already hold a seat at this table');
+      setActionLoading(null);
       return null;
     }
-    
+
     // Optimistically update the lobby player count
     setLocalLobbies(prev => 
       prev.map(lobby => 
@@ -229,9 +415,9 @@ function App() {
     );
     
     try {
-      await client.game_manager.joinGame(account, gameId);
+      const joinResult = await client.game_manager.joinGame(account, gameId);
       setActionLoading(null);
-      toastSuccess('Joined game!');
+      toastSuccess('Seat taken', joinResult?.transaction_hash);
 
       // Add joiner to local game state
       const joinerId = account.address;
@@ -246,12 +432,12 @@ function App() {
         };
       });
 
-      log('good', '🎮 Joined Game!', `Successfully joined lobby #${gameId} as ${username}`);
+      log('good', 'Seat taken', `Joined table #${gameId} as ${username}`);
       return { success: true };
     } catch (error) {
       console.error('Join game failed:', error);
       setActionLoading(null);
-      toastError('Failed to join game');
+      toastError(txErrorReason(error, 'Could not join the table'));
 
       // Revert the optimistic update on failure
       setLocalLobbies(prev => 
@@ -262,7 +448,7 @@ function App() {
         )
       );
       
-      log('warn', 'Join Failed', 'Could not join the game. Please try again.');
+      log('warn', 'Could not join the table', 'The transaction did not go through — try again.');
       return null;
     }
   };
@@ -302,7 +488,7 @@ function App() {
       return { dice1, dice2, success: true };
     } catch (error) {
       console.error('Roll dice failed:', error);
-      toastError('Dice roll failed');
+      toastError(txErrorReason(error, 'The dice roll did not go through'));
       return null;
     }
   };
@@ -311,53 +497,42 @@ function App() {
     if (!account || !client || !currentGameId) return null;
     setActionLoading('buying');
     try {
-      await client.board_actions.buyProperty(account, currentGameId, propertyId);
+      const result = await client.board_actions.buyProperty(account, currentGameId, propertyId);
       setActionLoading(null);
-      toastSuccess('Property purchased!');
+      toastSuccess('Property bought', result?.transaction_hash);
       return { success: true };
     } catch (error) {
       console.error('Buy property failed:', error);
       setActionLoading(null);
-      toastError('Purchase failed');
+      toastError(txErrorReason(error, 'The purchase did not go through'));
       return null;
     }
   };
 
   const startGame = async (gameId: number) => {
-    if (!account || !client) { toastError('Connect wallet first'); return null; }
+    if (!account || !client) { toastError('Connect a wallet first'); return null; }
+    if (gameId < 0) { toastError('This table is still being confirmed on-chain'); return null; }
     setActionLoading('starting');
+    // Tracked separately: currentGameId is not set until the transaction
+    // resolves, so it cannot tell the Harbor rows which table is starting.
+    setStartingId(gameId);
     try {
-      await client.game_manager.startGame(account, gameId);
-      setActionLoading(null);
-      toastSuccess('Game started!');
+      const result = await client.game_manager.startGame(account, gameId);
+      toastSuccess('Table started', result?.transaction_hash);
       setCurrentGameId(gameId);
       // Switch to play section
       setSection('play');
-      log('good', 'Game Started', `Game #${gameId} is now active!`);
+      log('good', 'Table started', `Table #${gameId} is now in play`);
       return { success: true };
     } catch (error) {
       console.error('Start game failed:', error);
-      setActionLoading(null);
-      toastError('Failed to start game');
+      toastError(txErrorReason(error, 'Could not start the table'));
       return null;
+    } finally {
+      setActionLoading(null);
+      setStartingId(null);
     }
   };
-
-  // Lobby refresh mechanism - sync local state with blockchain
-  const refreshLobbies = () => {
-    setLocalLobbies(prev => {
-      // Remove local lobbies that now exist on blockchain
-      return prev.filter(local => 
-        !blockchainLobbies.some(blockchain => blockchain.gameId === local.gameId)
-      );
-    });
-  };
-
-  // Auto-refresh lobbies every 30 seconds to sync with blockchain
-  useEffect(() => {
-    const interval = setInterval(refreshLobbies, 30000);
-    return () => clearInterval(interval);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update local game state — all game logic flows through this function.
   const updateGame = (updater: (prev: typeof game) => typeof game) => {
@@ -367,6 +542,8 @@ function App() {
   // --- Toast & loading state ---
   const { toasts, success: toastSuccess, error: toastError, info: toastInfo, removeToast } = useToast();
   const [actionLoading, setActionLoading] = useState<string | null>(null) // 'creating' | 'joining' | 'rolling' | 'buying' | null
+  /** The table id whose start transaction is in flight, if any. */
+  const [startingId, setStartingId] = useState<number | null>(null)
 
   // --- Core state ---
   const [section, setSection] = useState<'onboard'|'dashboard'|'play'|'manual'>('onboard')
@@ -386,6 +563,13 @@ function App() {
   const [auctionBid, setAuctionBid] = useState(0)
   // lobbies come from blockchain entities merged with local optimistic state
   const [gameOver, setGameOver] = useState<{ winner: typeof game.players[0] } | null>(null);
+  const [bankruptcy, setBankruptcy] = useState<{
+    player: Player
+    debt: number
+    creditor: Player | null
+    propertiesTransferred: number
+  } | null>(null);
+  const gameOverRef = useRef(false);
   const [openCard, setOpenCard] = useState<Card | undefined>()
   const [chanceDeck, setChanceDeck] = useState<Card[]>(() => shuffle([
     { id:'c1', deck:'chance', title:'Advance to Start', text:'Collect $200', action:{ kind:'move', to:0, passGo:true } },
@@ -430,11 +614,21 @@ function App() {
   function groupFor(id:number){ return Object.keys(groups).find(k=>groups[k].includes(id)) }
   function ownsGroup(pid:string, id:number){ const g=groupFor(id); if(!g) return false; return groups[g].every(tid=>game.ownership[tid]===pid) }
 
-  // Card draw
+  /* Draw the top card.
+     A card the player does NOT keep is consumed, so "12 cards left" in the
+     rail and on the Harbor screen is true rather than pinned at 12 forever.
+     A `keep` card goes to the back of the deck because the player banks a
+     copy of it. `setOpenCard` is called from here, not from inside the deck
+     updater — an impure updater is double-invoked under StrictMode. */
   function drawCard(deck:'chance'|'chest') {
     if (openCard) return
-    if (deck==='chance') setChanceDeck(d=>{ const [card,...rest]=d; setOpenCard(card); return rest.length?[...rest, card.keep?card:card]:[card] })
-    else setChestDeck(d=>{ const [card,...rest]=d; setOpenCard(card); return rest.length?[...rest, card.keep?card:card]:[card] })
+    const source = deck === 'chance' ? chanceDeck : chestDeck
+    if (source.length === 0) return
+    const [card, ...rest] = source
+    const nextDeck = rest.length ? (card.keep ? [...rest, card] : rest) : [card]
+    if (deck === 'chance') setChanceDeck(nextDeck)
+    else setChestDeck(nextDeck)
+    setOpenCard(card)
   }
   function nearest(id:number, list:number[]){ for(let i=1;i<=40;i++){ const t=(id+i)%40; if(list.includes(t)) return t } return id }
 
@@ -442,24 +636,31 @@ function App() {
     const cur = game.players[game.currentIdx]; if(!cur) return; const pid = cur.id
     const action = card.action
     switch(action.kind){
-      case 'money': { const amt=action.amount; updateGame(g=>({...g, balances:{...g.balances,[pid]:(g.balances[pid]||0)+amt}})); log(amt>=0?'good':'warn', card.title, `${amt>=0?'+':'-'}$${Math.abs(amt)}`); break }
-      case 'move': { const from=game.positions[pid]; const passGo=action.passGo && (from>action.to); updateGame(g=>({...g, positions:{...g.positions,[pid]:action.to}, balances: passGo?{...g.balances,[pid]:g.balances[pid]+200}:g.balances})); setSelected(action.to); if(passGo) log('good','Passed Start','+$200'); log('info',card.title,card.text); break }
+      case 'money': { const amt=action.amount; updateGame(g=>({...g, balances:{...g.balances,[pid]:(g.balances[pid]||0)+amt}})); log(amt>=0?'good':'warn', card.title, `${amt>=0?'+':'−'}${money(Math.abs(amt))}`); break }
+      case 'move': { const from=game.positions[pid]; const passGo=action.passGo && (from>action.to); updateGame(g=>({...g, positions:{...g.positions,[pid]:action.to}, balances: passGo?{...g.balances,[pid]:g.balances[pid]+200}:g.balances})); setSelected(action.to); if(passGo) log('good','Passed Start',`+${money(200)}`); log('info',card.title,card.text); break }
       case 'move_rel': { const from=game.positions[pid]; const to=(from+action.delta+40)%40; updateGame(g=>({...g, positions:{...g.positions,[pid]:to}})); setSelected(to); log('info',card.title,card.text); break }
-      case 'goto_jail': { updateGame(g=>({...g, positions:{...g.positions,[pid]:10}})); setInJail(j=>({...j,[pid]:3})); setSelected(10); log('warn','Jail','3 turns or pay $50'); break }
-      case 'jail_pass': { setJailPasses(p=>({...p,[pid]:(p[pid]||0)+1})); log('good','Jail Pass acquired','Stored until needed'); break }
-      case 'collect_each': { updateGame(g=>{ let delta=0; const up={...g.balances}; g.players.forEach(pl=>{ if(pl.id!==pid){ up[pl.id]-=action.amount; delta+=action.amount } }); up[pid]+=delta; return {...g, balances:up} }); log('good',card.title,`+$${action.amount} from each`); break }
-      case 'pay_each': { updateGame(g=>{ let cost=0; g.players.forEach(pl=>{ if(pl.id!==pid) cost+=action.amount }); return {...g, balances:{...g.balances,[pid]:g.balances[pid]-cost}} }); log('warn',card.title,`-$${action.amount} to each`); break }
+      case 'goto_jail': { updateGame(g=>({...g, positions:{...g.positions,[pid]:10}})); setInJail(j=>({...j,[pid]:3})); setSelected(10); log('warn','Sent to Jail',`Three turns, or post ${money(50)} bail`); break }
+      case 'jail_pass': { setJailPasses(p=>({...p,[pid]:(p[pid]||0)+1})); log('good','Jail pass banked','Held until you use it'); break }
+      case 'collect_each': { updateGame(g=>{ let delta=0; const up={...g.balances}; g.players.forEach(pl=>{ if(pl.id!==pid){ up[pl.id]-=action.amount; delta+=action.amount } }); up[pid]+=delta; return {...g, balances:up} }); log('good',card.title,`+${money(action.amount)} from every other player`); break }
+      case 'pay_each': { updateGame(g=>{ let cost=0; g.players.forEach(pl=>{ if(pl.id!==pid) cost+=action.amount }); return {...g, balances:{...g.balances,[pid]:g.balances[pid]-cost}} }); log('warn',card.title,`−${money(action.amount)} to every other player`); break }
       case 'nearest_rail': { const to=nearest(game.positions[pid],[5,15,25,35]); updateGame(g=>({...g, positions:{...g.positions,[pid]:to}})); setSelected(to); log('info',card.title,`Moved to Rail ${to}`); break }
       case 'nearest_utility': { const to=nearest(game.positions[pid],[12,28]); updateGame(g=>({...g, positions:{...g.positions,[pid]:to}})); setSelected(to); log('info',card.title,`Moved to Utility ${to}`); break }
-      case 'repair': { const housesCount=Object.entries(game.houses).reduce((a,[,c])=>a+(c&&c<5?c:0),0); const hotelsCount=Object.entries(game.houses).reduce((a,[,c])=>a+(c===5?1:0),0); const cost=housesCount*action.perHouse+hotelsCount*action.perHotel; if(cost>0) updateGame(g=>({...g, balances:{...g.balances,[pid]:g.balances[pid]-cost}})); log('warn',card.title,`-$${cost}`); break }
+      case 'repair': { const housesCount=Object.entries(game.houses).reduce((a,[,c])=>a+(c&&c<5?c:0),0); const hotelsCount=Object.entries(game.houses).reduce((a,[,c])=>a+(c===5?1:0),0); const cost=housesCount*action.perHouse+hotelsCount*action.perHotel; if(cost>0) updateGame(g=>({...g, balances:{...g.balances,[pid]:g.balances[pid]-cost}})); log('warn',card.title,`−${money(cost)}`); break }
     }
-    if(!card.keep) setOpenCard(undefined)
+    /* Always close. `keep` decides whether the pass is BANKED, not whether
+       the dialog dismisses — leaving it open let a player press Apply
+       repeatedly and mint unlimited jail passes. */
+    setOpenCard(undefined)
   }
-  function useJailPass(){ const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((jailPasses[cur.id]||0)<=0) return; setJailPasses(p=>({...p,[cur.id]:p[cur.id]-1})); setInJail(j=>({...j,[cur.id]:0})); log('good','Jail Pass used','Freed from Jail') }
+  function useJailPass(){ const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((jailPasses[cur.id]||0)<=0) return; setJailPasses(p=>({...p,[cur.id]:p[cur.id]-1})); setInJail(j=>({...j,[cur.id]:0})); log('good','Jail pass used','Out of Jail') }
 
   async function handleGameOver(winner: typeof game.players[0]) {
+    // The bankruptcy effect can be double-invoked under StrictMode; settling
+    // the pot is not something to do twice.
+    if (gameOverRef.current) return;
+    gameOverRef.current = true;
     setGameOver({ winner });
-    log('good', 'GAME OVER!', `${winner.name} wins the game!`);
+    log('good', 'Table complete', `${winner.name} wins the table`);
 
     // Call contract to end the game
     if (account && client && currentGameId) {
@@ -470,61 +671,73 @@ function App() {
           currentGameId,
           new CairoOption(CairoOptionVariant.Some, winner.id)
         );
-        toastSuccess(`${winner.name} wins! Prizes distributed.`);
+        toastSuccess(`${winner.name} wins the table — the pot is settled by the contract.`);
       } catch (error) {
         console.error('End game contract call failed:', error);
-        toastError('Action may not sync to blockchain');
+        toastError(txErrorReason(error, 'That action may not have synced to the chain'));
       }
     }
   }
 
-  function checkBankruptcy(playerId: string) {
-    const balance = game.balances[playerId] || 0;
-    if (balance < 0) {
-      log('warn', 'BANKRUPT!', `${game.players.find(p => p.id === playerId)?.name || playerId} is bankrupt and eliminated!`);
-      // Mark player as bankrupt by removing from active players
-      updateGame(g => {
-        const removedIdx = g.players.findIndex(p => p.id === playerId);
-        const newPlayers = g.players.filter(p => p.id !== playerId);
+  /* Bankruptcy is evaluated against the CURRENT balances, from an effect
+     keyed on game state. It used to run from a `setTimeout` that closed over
+     the pre-deduction render, so `balance < 0` was never true on the payment
+     that actually caused it — elimination always fired one action late, off a
+     stale roster. */
+  useEffect(() => {
+    if (gameOver) return;
+    const broke = game.players.find(p => (game.balances[p.id] ?? 0) < 0);
+    if (!broke) return;
 
-        // Adjust currentIdx if the removed player was before or at current turn
-        let newIdx = g.currentIdx;
-        if (newPlayers.length === 0) {
-          newIdx = 0;
-        } else if (removedIdx < g.currentIdx) {
-          newIdx = g.currentIdx - 1;
-        } else if (removedIdx === g.currentIdx) {
-          // Current player went bankrupt — keep same index (it now points to next player)
-          // But wrap around if at end
-          newIdx = g.currentIdx % newPlayers.length;
-        }
-        // Ensure in bounds
-        if (newIdx >= newPlayers.length) newIdx = 0;
+    const debt = Math.abs(game.balances[broke.id] ?? 0);
+    const creditor = lastCreditor ? game.players.find(p => p.id === lastCreditor) ?? null : null;
+    const transferred = Object.values(game.ownership).filter(o => o === broke.id).length;
 
-        return {
-          ...g,
-          players: newPlayers,
-          currentIdx: newIdx,
-          ownership: Object.fromEntries(
-            Object.entries(g.ownership).map(([tid, propOwner]) =>
-              [tid, propOwner === playerId ? (lastCreditor || undefined) : propOwner]
-            )
-          ),
-          houses: Object.fromEntries(
-            Object.entries(g.houses).map(([tid, count]) =>
-              [tid, g.ownership[Number(tid)] === playerId ? 0 : count]
-            )
-          ),
-        };
-      });
+    log('warn', 'Player bankrupt', `${broke.name} cannot cover ${money(debt)} and is out of the table`);
+    setBankruptcy({ player: broke, debt, creditor, propertiesTransferred: transferred });
 
-      // Check if game is over (1 player left)
-      const remainingPlayers = game.players.filter(p => p.id !== playerId);
-      if (remainingPlayers.length === 1) {
-        handleGameOver(remainingPlayers[0]);
+    updateGame(g => {
+      const removedIdx = g.players.findIndex(p => p.id === broke.id);
+      if (removedIdx === -1) return g;
+      const newPlayers = g.players.filter(p => p.id !== broke.id);
+
+      // Adjust currentIdx if the removed player was before or at current turn
+      let newIdx = g.currentIdx;
+      if (newPlayers.length === 0) {
+        newIdx = 0;
+      } else if (removedIdx < g.currentIdx) {
+        newIdx = g.currentIdx - 1;
+      } else if (removedIdx === g.currentIdx) {
+        // Current player went bankrupt — the same index now points at the
+        // next player, so only the wrap-around needs handling.
+        newIdx = g.currentIdx % newPlayers.length;
       }
-    }
-  }
+      if (newIdx >= newPlayers.length) newIdx = 0;
+
+      return {
+        ...g,
+        players: newPlayers,
+        currentIdx: newIdx,
+        ownership: Object.fromEntries(
+          Object.entries(g.ownership).map(([tid, propOwner]) =>
+            [tid, propOwner === broke.id ? (lastCreditor || undefined) : propOwner]
+          )
+        ),
+        houses: Object.fromEntries(
+          Object.entries(g.houses).map(([tid, count]) =>
+            [tid, g.ownership[Number(tid)] === broke.id ? 0 : count]
+          )
+        ),
+      };
+    });
+
+    // The table is over when one player is left standing.
+    const remainingPlayers = game.players.filter(p => p.id !== broke.id);
+    if (remainingPlayers.length === 1) handleGameOver(remainingPlayers[0]);
+    // handleGameOver / log / updateGame are stable enough for this check;
+    // re-running on any game change is what makes it see fresh balances.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game, lastCreditor, gameOver]);
 
   function moveAndResolve(steps:number, diceA?:number, diceB?:number){
     const cur=game.players[game.currentIdx]; if(!cur) return;
@@ -543,7 +756,7 @@ function App() {
     }
     const from=game.positions[cur.id] || 0; const to=(from+steps)%40; const passGo=from+steps>=40
     updateGame(g=>({...g, positions:{...g.positions,[cur.id]:to}, balances: passGo?{...g.balances,[cur.id]:(g.balances[cur.id]||0)+200}:g.balances }))
-    if(passGo) log('good',`${cur.name} passed Start`,'+$200')
+    if(passGo) log('good',`${cur.name} passed Start`,`+${money(200)}`)
     setSelected(to)
     const tile=monoTiles[to]; if(!tile) return
     if(tile.kind==='chance'){ drawCard('chance'); return }
@@ -551,11 +764,10 @@ function App() {
     if(tile.kind==='tax'){
       const taxAmount = to === 38 ? 75 : 200; // Tile 38 = Luxury Tax ($75), Tile 4 = Income Tax ($200)
       updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-taxAmount}}));
-      log('warn',`${cur.name} paid ${tile.label}`,`-$${taxAmount}`);
-      setTimeout(() => checkBankruptcy(cur.id), 100);
+      log('warn',`${cur.name} paid ${tile.label}`,`−${money(taxAmount)}`);
       return;
     }
-    if(tile.kind==='gotojail'){ updateGame(g=>({...g, positions:{...g.positions,[cur.id]:10}})); setInJail(j=>({...j,[cur.id]:3})); setSelected(10); log('warn',`${cur.name} went to Jail`,'3 turns or $50'); return }
+    if(tile.kind==='gotojail'){ updateGame(g=>({...g, positions:{...g.positions,[cur.id]:10}})); setInJail(j=>({...j,[cur.id]:3})); setSelected(10); log('warn',`${cur.name} went to Jail`,`Three turns, or post ${money(50)} bail`); return }
     if(['property','rail','utility'].includes(tile.kind)){
       const owner=game.ownership[to]; if(owner && owner!==cur.id && !mortgages[to]){
         const baseRent = Math.max(10, Math.floor((price[to]||100) * 0.1));
@@ -571,11 +783,11 @@ function App() {
           });
         }
         setLastCreditor(owner);
-        log('info',`${cur.name} paid rent`, `-$${rent} to ${owner}`)
+        log('info',`${cur.name} paid rent`, `−${money(rent)} to ${game.players.find(p=>p.id===owner)?.name ?? 'the owner'}`)
       }
     }
-    // Check for bankruptcy after all deductions
-    setTimeout(() => checkBankruptcy(cur.id), 100);
+    // Bankruptcy is picked up by the effect keyed on `game`, which sees the
+    // post-deduction balances rather than this render's stale closure.
   }
   function handleDoublesAndMove(dice1: number, dice2: number) {
     setD1(dice1);
@@ -592,11 +804,11 @@ function App() {
         updateGame(g => ({...g, positions: {...g.positions, [game.players[game.currentIdx].id]: 10}}));
         setInJail(j => ({...j, [game.players[game.currentIdx].id]: 3}));
         setSelected(10);
-        log('warn', 'Three Doubles!', `${game.players[game.currentIdx].name} rolled doubles 3 times — sent to Jail!`);
+        log('warn', 'Three doubles', `${game.players[game.currentIdx].name} rolled doubles three times and goes to Jail`);
         setRolling(false);
         return;
       }
-      log('info', 'Doubles!', `${game.players[game.currentIdx].name} rolled doubles — gets another turn!`);
+      log('info', 'Doubles', `${game.players[game.currentIdx].name} rolled doubles and rolls again`);
     } else {
       setDoublesCount(0);
     }
@@ -607,7 +819,7 @@ function App() {
 
   async function rollDice(){
     if(rolling||openCard) return;
-    if(!isMyTurn) { toastError("Not your turn!"); return; }
+    if(!isMyTurn) { toastError("It is not your turn"); return; }
     setRolling(true);
     setLastCreditor(null);
 
@@ -621,7 +833,7 @@ function App() {
             await client.board_actions.movePlayer(account, currentGameId);
           } catch (error) {
             console.error('Move player contract call failed:', error);
-            toastError('Action may not sync to blockchain');
+            toastError(txErrorReason(error, 'That action may not have synced to the chain'));
           }
         }
         setTimeout(() => handleDoublesAndMove(dojoResult.dice1, dojoResult.dice2), 420);
@@ -640,15 +852,15 @@ function App() {
   function isCurrentPlayer() { return !!account && game.players[game.currentIdx]?.id === account.address; }
 
   async function buyProperty(id:number){
-    if(!isCurrentPlayer()) { toastError("Not your turn!"); return; }
+    if(!isCurrentPlayer()) { toastError("It is not your turn"); return; }
     const t=monoTiles[id];
     if(!t) return;
     if(!['property','rail','utility'].includes(t.kind)) return;
     const cur=game.players[game.currentIdx]; 
     if(!cur) return;
-    if(game.ownership[id]) return log('warn','Owned already',''); 
+    if(game.ownership[id]) return log('warn','Already owned','Someone already holds this property'); 
     const cost=price[id]||0; 
-    if((game.balances[cur.id] || 0)<cost) return log('warn','Need funds',`$${cost}`); 
+    if((game.balances[cur.id] || 0)<cost) return log('warn','Not enough cash',`This costs ${money(cost)}`); 
     
     try {
       // Use real Dojo contract
@@ -660,7 +872,7 @@ function App() {
           ownership: { ...g.ownership, [id]: cur.id },
           balances: { ...g.balances, [cur.id]: (g.balances[cur.id] || 0) - cost },
         }));
-        log('good','Bought via Dojo',`${t.label} $${cost}`);
+        log('good','Property bought',`${t.label} for ${money(cost)}`);
         return;
       }
     } catch (error) {
@@ -673,19 +885,19 @@ function App() {
       ownership: { ...g.ownership, [id]: cur.id },
       balances: { ...g.balances, [cur.id]: (g.balances[cur.id] || 0) - cost },
     }));
-    log('good','Bought (local)',`${t.label} $${cost}`);
+    log('good','Property bought',`${t.label} for ${money(cost)}`);
   }
-  async function buildHouse(id:number){ if(!isCurrentPlayer()) { toastError("Not your turn!"); return; } const t=monoTiles[id]; if(!t||t.kind!=='property') return; const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); if(!ownsGroup(cur.id,id)) return log('warn','Need set',''); const current=game.houses[id]||0; if(current>=5) return log('warn','Max built',''); const cost=current===4?houseCost[id]*2:houseCost[id]; if((game.balances[cur.id]||0)<cost) return log('warn','Need funds',`$${cost}`); if (account && client && currentGameId) { try { await client.board_actions.developProperty(account, currentGameId, id); } catch (error) { console.error('Develop property contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, houses:{...g.houses,[id]:current+1}, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-cost}})); log('good', current===4?'Hotel built':'House built', `-$${cost}`) }
-  async function mortgageProperty(id:number){ if(!isCurrentPlayer()) { toastError("Not your turn!"); return; } if(mortgages[id]) return log('warn','Already mortgaged',''); const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','Not owner',''); const val=Math.floor((price[id]||0)/2); if (account && client && currentGameId) { try { await client.board_actions.mortgageProperty(account, currentGameId, id); } catch (error) { console.error('Mortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>({...m,[id]:true})); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)+val}})); log('info','Mortgaged',`+$${val}`) }
-  async function unmortgageProperty(id:number){ if(!isCurrentPlayer()) { toastError("Not your turn!"); return; } if(!mortgages[id]) return; const cur=game.players[game.currentIdx]; if(!cur) return; const val=Math.floor((price[id]||0)/2)*1.1; if((game.balances[cur.id]||0)<val) return log('warn','Need funds',`$${val}`); if (account && client && currentGameId) { try { await client.board_actions.unmortgageProperty(account, currentGameId, id); } catch (error) { console.error('Unmortgage contract call failed:', error); toastError('Action may not sync to blockchain'); } } setMortgages(m=>{const n={...m}; delete n[id]; return n}); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-val}})); log('info','Unmortgaged',`-$${val}`) }
-  async function payBail(){ if(!isCurrentPlayer()) { toastError("Not your turn!"); return; } const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((game.balances[cur.id]||0)<50) return log('warn','Need $50',''); if (account && client && currentGameId) { try { await client.board_actions.payBail(account, currentGameId); } catch (error) { console.error('Pay bail contract call failed:', error); toastError('Action may not sync to blockchain'); } } updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-50}})); setInJail(j=>({...j,[cur.id]:0})); log('good','Bail paid','Freed') }
+  async function buildHouse(id:number){ if(!isCurrentPlayer()) { toastError("It is not your turn"); return; } const t=monoTiles[id]; if(!t||t.kind!=='property') return; const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','You do not own this property',''); if(!ownsGroup(cur.id,id)) return log('warn','Own every property in the group first',''); const current=game.houses[id]||0; if(current>=5) return log('warn','This property already has a hotel',''); const cost=current===4?houseCost[id]*2:houseCost[id]; if((game.balances[cur.id]||0)<cost) return log('warn','Not enough cash',`This costs ${money(cost)}`); if (account && client && currentGameId) { try { await client.board_actions.developProperty(account, currentGameId, id); } catch (error) { console.error('Develop property contract call failed:', error); toastError(txErrorReason(error, 'That action may not have synced to the chain')); } } updateGame(g=>({...g, houses:{...g.houses,[id]:current+1}, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-cost}})); log('good', current===4?'Hotel built':'House built', `−${money(cost)}`) }
+  async function mortgageProperty(id:number){ if(!isCurrentPlayer()) { toastError("It is not your turn"); return; } if(mortgages[id]) return log('warn','Already mortgaged','This property is already mortgaged'); const cur=game.players[game.currentIdx]; if(!cur) return; if(game.ownership[id]!==cur.id) return log('warn','You do not own this property',''); const val=Math.floor((price[id]||0)/2); if (account && client && currentGameId) { try { await client.board_actions.mortgageProperty(account, currentGameId, id); } catch (error) { console.error('Mortgage contract call failed:', error); toastError(txErrorReason(error, 'That action may not have synced to the chain')); } } setMortgages(m=>({...m,[id]:true})); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)+val}})); log('info','Mortgaged',`+${money(val)}`) }
+  async function unmortgageProperty(id:number){ if(!isCurrentPlayer()) { toastError("It is not your turn"); return; } if(!mortgages[id]) return; const cur=game.players[game.currentIdx]; if(!cur) return; const val=Math.floor((price[id]||0)/2)*1.1; if((game.balances[cur.id]||0)<val) return log('warn','Not enough cash',`Lifting this mortgage costs ${money(val)}`); if (account && client && currentGameId) { try { await client.board_actions.unmortgageProperty(account, currentGameId, id); } catch (error) { console.error('Unmortgage contract call failed:', error); toastError(txErrorReason(error, 'That action may not have synced to the chain')); } } setMortgages(m=>{const n={...m}; delete n[id]; return n}); updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-val}})); log('info','Unmortgaged',`−${money(val)}`) }
+  async function payBail(){ if(!isCurrentPlayer()) { toastError("It is not your turn"); return; } const cur=game.players[game.currentIdx]; if(!cur) return; if((inJail[cur.id]||0)===0) return; if((game.balances[cur.id]||0)<50) return log('warn','Not enough cash',`Bail is ${money(50)}`); if (account && client && currentGameId) { try { await client.board_actions.payBail(account, currentGameId); } catch (error) { console.error('Pay bail contract call failed:', error); toastError(txErrorReason(error, 'That action may not have synced to the chain')); } } updateGame(g=>({...g, balances:{...g.balances,[cur.id]:(g.balances[cur.id]||0)-50}})); setInJail(j=>({...j,[cur.id]:0})); log('good','Bail paid','Out of Jail') }
   async function endTurn(){
-    if(!isCurrentPlayer()) { toastError("Not your turn!"); return; }
-    if(openCard) return log('warn','Resolve card','Apply first');
+    if(!isCurrentPlayer()) { toastError("It is not your turn"); return; }
+    if(openCard) return log('warn','Resolve the open card first','Apply it, then end your turn');
 
     // If player rolled doubles, don't advance turn (they go again)
     if (doublesCount > 0 && !openCard) {
-      log('info', 'Extra Turn', `${curPlayer.name} gets another roll from doubles`);
+      log('info', 'Extra roll', `${curPlayer.name} rolled doubles and rolls again`);
       return; // Don't advance — player rolls again
     }
     setDoublesCount(0);
@@ -699,12 +911,12 @@ function App() {
       const winner = [...game.players].sort((a, b) => (game.balances[b.id] || 0) - (game.balances[a.id] || 0))[0];
       if (winner) {
         handleGameOver(winner);
-        log('warn', 'Turn Limit!', `100 turns reached — ${winner.name} wins by highest balance!`);
+        log('warn', 'Turn limit reached', `100 turns played — ${winner.name} wins on balance`);
         return;
       }
     }
 
-    if (account && client && currentGameId) { try { await client.board_actions.endTurn(account, currentGameId); } catch (error) { console.error('End turn contract call failed:', error); toastError('Action may not sync to blockchain'); } }
+    if (account && client && currentGameId) { try { await client.board_actions.endTurn(account, currentGameId); } catch (error) { console.error('End turn contract call failed:', error); toastError(txErrorReason(error, 'That action may not have synced to the chain')); } }
     updateGame(g=>({...g, currentIdx:(g.currentIdx+1)%g.players.length }));
     setInJail(j => {
       const n = {...j};
@@ -717,7 +929,7 @@ function App() {
               ...g,
               balances: { ...g.balances, [k]: (g.balances[k] || 0) - 50 }
             }));
-            log('warn', 'Jail Time Served', `${game.players.find(p=>p.id===k)?.name || k} released — forced $50 bail`);
+            log('warn', 'Released from Jail', `${game.players.find(p=>p.id===k)?.name || k} served three turns — ${money(50)} bail taken`);
           }
         }
       });
@@ -726,7 +938,7 @@ function App() {
   }
 
   // Derived
-  const curPlayer = game.players[game.currentIdx] || { id: '', name: 'Unknown', color: '#666' }
+  const curPlayer = game.players[game.currentIdx] || { id: '', name: 'No player', color: NO_PLAYER_COLOR }
   const isMyTurn = !!account && curPlayer.id === account.address
   const tile = monoTiles[selected]
   const owner = game.ownership[selected]
@@ -736,238 +948,224 @@ function App() {
   const hasJailPass = curPlayer.id ? (jailPasses[curPlayer.id]||0)>0 : false
   const isMortgaged = !!mortgages[selected]
 
+  /* ------------------------------------------------------------------
+     Presentation-only derived values.
+     Nothing below mutates game state — it formats what already exists.
+     ETH appears ONLY on the table entry stake and the pot; every board
+     figure is game dollars.
+     ------------------------------------------------------------------ */
+  const activeLobby = currentGameId !== undefined ? lobbies.find(l => l.gameId === currentGameId) : undefined
+  const entryEthNum = activeLobby ? Number(activeLobby.entryEth) || 0 : 0
+  const seatsFilled = activeLobby ? activeLobby.players : game.players.length
+  const potEthLabel = `${Math.round(entryEthNum * seatsFilled * 1e6) / 1e6} ETH`
+  const activeTable = activeLobby
+    ? {
+        tableId: activeLobby.gameId,
+        seatsFilled: activeLobby.players,
+        seatsTotal: activeLobby.maxPlayers,
+        tier: TIER_BY_ENTRY[activeLobby.entryEth] ?? 'Bronze',
+        entry: `${entryEthNum} ETH`,
+        pot: potEthLabel,
+      }
+    : null
+
+  // The jail pass is player state, not a board action — it rides in the
+  // shell's sidebar tray so it never covers a tile.
+  const canUseJailPass = section === 'play' && hasJailPass && !!curPlayer.id && (inJail[curPlayer.id] || 0) > 0
+
+  const navItems = [
+    { id: 'onboard', label: 'Lobby', icon: ShellIcons.lobby, badge: lobbies.length > 0 ? lobbies.length : undefined },
+    { id: 'dashboard', label: 'Harbor', icon: ShellIcons.harbor },
+    { id: 'play', label: 'Play', icon: ShellIcons.play },
+    { id: 'manual', label: 'Manual', icon: ShellIcons.manual },
+  ]
+
+  const tradePropertyFor = (tileId: number): TradeProperty | undefined => {
+    const t = monoTiles[tileId]
+    if (!t) return undefined
+    return {
+      tileId,
+      name: t.label,
+      groupColor: t.color,
+      price: price[tileId] ?? 0,
+      houses: game.houses[tileId] ?? 0,
+      mortgaged: !!mortgages[tileId],
+    }
+  }
+  const propertiesOwnedBy = (pid: string): TradeProperty[] =>
+    Object.entries(game.ownership)
+      .filter(([, o]) => !!pid && o === pid)
+      .map(([tid]) => tradePropertyFor(Number(tid)))
+      .filter((p): p is TradeProperty => !!p)
+  const boardProperties: TradeProperty[] = monoTiles
+    .filter(t => t.kind === 'property')
+    .map(t => ({ tileId: t.id, name: t.label, groupColor: t.color, price: price[t.id] ?? 0 }))
+
+  const standings: FinalStanding[] = gameOver
+    ? [...game.players]
+        .sort((a, b) => {
+          if (a.id === gameOver.winner.id) return -1
+          if (b.id === gameOver.winner.id) return 1
+          return (game.balances[b.id] || 0) - (game.balances[a.id] || 0)
+        })
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          color: p.color,
+          properties: Object.values(game.ownership).filter(o => o === p.id).length,
+          balance: game.balances[p.id] || 0,
+        }))
+    : []
+
   // --- JSX ---
   return (
     <>
-    {/* Mobile warning overlay */}
-    <div className="mobile-gate">
-      <div className="mobile-gate-content">
-        <div style={{ fontSize: 64, marginBottom: 16 }}>🐋</div>
-        <h1>Whale-Opoly</h1>
-        <p>This game is designed for desktop screens. Please open it on a laptop or desktop computer for the best experience.</p>
-        <div style={{ marginTop: 20, padding: '10px 20px', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.2)', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
-          Minimum recommended: 1024px wide
-        </div>
-      </div>
-    </div>
-    <div className="app">
-      <aside className="sideNav">
-        <div className="brand">
-          <img className="brand-logo" src="/whaleopoly.png" alt="Whaleopoly logo" />
-          <div className="brand-text">
-            <h2>Whaleopoly</h2>
-            <p>On‑chain strategy</p>
-          </div>
-        </div>
-        <nav className="navList">
-          <button className={`navItem ${section==='onboard'?'active':''}`} onClick={()=>setSection('onboard')}>
-            <span className="icon" aria-hidden>{DiceIcon}</span>
-            <span>Lobby</span>
-          </button>
-          <button className={`navItem ${section==='dashboard'?'active':''}`} onClick={()=>setSection('dashboard')}>
-            <span className="icon" aria-hidden>{DiceIcon}</span>
-            <span>Harbor</span>
-          </button>
-          <button className={`navItem ${section==='play'?'active':''}`} onClick={()=>setSection('play')}>
-            <span className="icon" aria-hidden>{BoardIcon}</span>
-            <span>Play</span>
-          </button>
-          <button className={`navItem ${section==='manual'?'active':''}`} onClick={()=>setSection('manual')}>
-            <span className="icon" aria-hidden>{EventIcon}</span>
-            <span>Manual</span>
-          </button>
-        </nav>
-        <div className="sideFooter">
-          <div className="chip">Starknet Testnet</div>
-        </div>
-      </aside>
+      <MobileGate />
 
-      <main className="content">
-        <header className="topbar">
-          <div className="crumbs">
-            <span className="crumb">{section === 'onboard' ? 'Lobby' : section === 'play' ? 'Game Board' : section === 'manual' ? 'Game Manual' : 'Harbor'}</span>
-          </div>
-          <div className="actions">
-            <WalletButton />
-          </div>
-        </header>
+      <AppShell
+        section={section}
+        navItems={navItems}
+        onNavigate={(id) => setSection(id as typeof section)}
+        walletSlot={<WalletMenu onCopyAddress={() => toastSuccess('Address copied')} />}
+        activeTable={activeTable}
+        sidebarFooterSlot={canUseJailPass ? (
+          <button type="button" className="btn btn-outline jailpass-action" onClick={useJailPass}>
+            Use jail pass
+            <span className="chip chip-sm chip-value num">{jailPasses[curPlayer.id] || 0}</span>
+          </button>
+        ) : undefined}
+        onOpenRulebook={() => setSection('manual')}
+      >
+        {torii.status === 'gone' || torii.status === 'error' ? (
+          <ServiceBanner
+            tone={torii.status === 'gone' ? 'danger' : 'warn'}
+            title={
+              torii.status === 'gone'
+                ? 'Live game data is offline'
+                : 'Live game data is having trouble'
+            }
+            detail={
+              torii.status === 'gone'
+                ? 'The indexer for this world is no longer deployed, so tables and board state cannot load. Existing games are unaffected on-chain — the service in front of them needs redeploying.'
+                : 'The indexer is responding with errors. Tables and board state may be missing or out of date.'
+            }
+            actionLabel="Check again"
+            onAction={() => void torii.recheck()}
+            busy={torii.checking}
+          />
+        ) : null}
 
-        {section==='onboard' && (
-          <>
-            <section className="hero">
-              <div className="hero-copy">
-                <h1>
-                  Dive In. Stake. Conquer.
-                  <span className="sparkle"/>
-                </h1>
-                <p>Create a game or join the depths.</p>
-                <div className="cta">
-                  <button className="btn outline" onClick={()=>setSection('play')}>Try the board</button>
-                </div>
-              </div>
-            </section>
-
-            <OnboardPanel
-              lobbies={lobbies}
-              onCreate={async (maxPlayers, host, entryEth)=>{
-                try {
-                  const result = await createLobby(maxPlayers, host, entryEth);
-                  if (result?.success && result?.transactionHash) {
-                    // Success message is already shown by createLobby function
-                    log('info','🚀 Lobby Broadcasting...', 'Your game is now live on-chain! Other players can discover and join your lobby.');
-                  } else {
-                    throw new Error('Failed to create lobby');
-                  }
-                } catch (error) {
-                  console.error('Failed to create lobby:', error);
-                  log('warn','Lobby Creation Failed', 'Please check your wallet connection and try again.');
+        {section === 'onboard' && (
+          <LobbyScreen
+            lobbies={lobbies}
+            dataUnavailable={torii.status === 'gone' || torii.status === 'error'}
+            isConnected={!!account}
+            currentAddress={account?.address}
+            actionLoading={actionLoading}
+            onCreate={async (maxPlayers, host, entryEth) => {
+              try {
+                const result = await createLobby(maxPlayers, host, entryEth);
+                if (result?.success && result?.transactionHash) {
+                  log('info','Table is live', 'Other players can find it in the Lobby and take a seat.');
+                } else {
+                  throw new Error('Failed to create lobby');
                 }
-              }}
-              onJoin={async (gameId, username)=>{
-                try {
-                  const result = await joinLobby(gameId, username);
-                  if (result?.success) {
-                    log('good','Joined game via Dojo', `${username} • game_id ${gameId}`);
-                    setCurrentGameId(gameId);
-                    setSection('play');
-                  } else {
-                    throw new Error('Failed to join lobby');
-                  }
-                } catch (error) {
-                  console.error('Failed to join lobby:', error);
-                  log('warn','Join failed', 'Check connection');
+              } catch (error) {
+                console.error('Failed to create lobby:', error);
+                log('warn','Could not create the table', 'Check your wallet connection and try again.');
+              }
+            }}
+            onJoin={async (gameId, username) => {
+              try {
+                const result = await joinLobby(gameId, username);
+                if (result?.success) {
+                  log('good','Seat taken', `${username} joined table #${gameId}`);
+                  setCurrentGameId(gameId);
+                  setSection('play');
+                } else {
+                  throw new Error('Failed to join lobby');
                 }
-              }}
-              onStart={async (gameId)=>{
-                try {
-                  const result = await startGame(gameId);
-                  if (!result?.success) {
-                    throw new Error('Failed to start game');
-                  }
-                } catch (error) {
-                  console.error('Failed to start game:', error);
-                  log('warn','Start failed', 'Check connection');
+              } catch (error) {
+                console.error('Failed to join lobby:', error);
+                log('warn','Could not join the table', 'Check your wallet connection and try again.');
+              }
+            }}
+            onStart={async (gameId) => {
+              try {
+                const result = await startGame(gameId);
+                if (!result?.success) {
+                  throw new Error('Failed to start game');
                 }
-              }}
-              onCancel={async (gameId) => {
-                if (!account || !client) return;
-                try {
-                  await client.game_manager.cancelGame(account, gameId);
-                  toastSuccess('Lobby cancelled');
-                  setLocalLobbies(prev => prev.filter(l => l.gameId !== gameId));
-                  log('info', 'Lobby Cancelled', `Game #${gameId} cancelled and refunded`);
-                } catch (error) {
-                  console.error('Cancel game failed:', error);
-                  toastError('Failed to cancel — only the creator can cancel');
-                }
-              }}
-              actionLoading={actionLoading}
-            />
-
-            {/* Removed verbose staking explainer to keep onboarding direct */}
-          </>
+              } catch (error) {
+                console.error('Failed to start game:', error);
+                log('warn','Could not start the table', 'Check your wallet connection and try again.');
+              }
+            }}
+            onCancel={async (gameId) => {
+              if (!account || !client) return;
+              try {
+                await client.game_manager.cancelGame(account, gameId);
+                toastSuccess('Table cancelled');
+                setLocalLobbies(prev => prev.filter(l => l.gameId !== gameId));
+                log('info', 'Table cancelled', `Table #${gameId} was cancelled and the stake refunded`);
+              } catch (error) {
+                console.error('Cancel game failed:', error);
+                toastError('Only the host can cancel this table');
+              }
+            }}
+          />
         )}
 
-        {section==='dashboard' && (
-          <section className="panel twoCol">
-            <div className="col col-left">
-              <div className="panelTitle">
-                <span className="icon" aria-hidden>{BoardIcon}</span>
-                Dashboard overview
-              </div>
-              {(() => {
-                const ownedCount = Object.values(game.ownership).filter(Boolean).length
-                const housesBuilt = Object.values(game.houses).reduce((a, c) => a + (c || 0), 0)
-                const cashTotal = Object.values(game.balances).reduce((a: number, c) => a + (Number(c) || 0), 0)
-                return (
-                  <div className="statsGrid">
-                    <div className="stat"><div className="statLabel">Open lobbies</div><div className="statValue">{lobbies.length}</div></div>
-                    <div className="stat"><div className="statLabel">Players</div><div className="statValue">{game.players.length}</div></div>
-                    <div className="stat"><div className="statLabel">Owned tiles</div><div className="statValue">{ownedCount}</div></div>
-                    <div className="stat"><div className="statLabel">Houses built</div><div className="statValue">{housesBuilt}</div></div>
-                    <div className="stat"><div className="statLabel">Cash total</div><div className="statValue">${cashTotal.toLocaleString()}</div></div>
-                    <div className="stat"><div className="statLabel">Cards left</div><div className="statValue">Ch {chanceDeck.length} • Cs {chestDeck.length}</div></div>
-                  </div>
-                )
-              })()}
-
-              <div className="panelTitle" style={{ marginTop: 16 }}>
-                <span className="icon" aria-hidden>{EventIcon}</span>
-                Open lobbies
-              </div>
-              <div className="lobbies">
-                {lobbies.length===0 && <div className="muted">No open lobbies yet.</div>}
-                {lobbies.slice(0,3).map(l => (
-                  <div key={l.gameId} className="lobbyRow">
-                    <div className="lobbyMain">
-                      <div className="lobbyTitle">Game #{l.gameId}</div>
-                      <div className="lobbyMeta">
-                        <span className="chip">{l.players}/{l.maxPlayers} players</span>
-                        <span className="chip">entry {l.entryEth} ETH</span>
-                        <span className="chip">host {l.host}</span>
-                      </div>
-                    </div>
-                    <div className="lobbyActions">
-                      <button className="btn outline" onClick={()=>setSection('onboard')}>Open Onboard</button>
-                      {l.players >= 2 && (
-                        <button className="btn glow" disabled={actionLoading === 'starting'} onClick={()=>startGame(l.gameId)}>
-                          {actionLoading === 'starting' ? 'Starting...' : 'Start'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="col col-right">
-              <div className="panelTitle">
-                <span className="icon" aria-hidden>{EventIcon}</span>
-                Recent activity
-              </div>
-              <div className="feed">
-                {feed.slice(0,5).map((f, idx) => (
-                  <div key={idx} className={`feedItem ${f.kind}`}>
-                    <div className="feedHeader">
-                      <span className="dot"/>
-                      <span className="feedTitle">{f.title}</span>
-                      <span className="time">{f.time}</span>
-                    </div>
-                    <div className="feedBody">{f.body}</div>
-                  </div>
-                ))}
-                {feed.length===0 && <div className="muted">No activity yet.</div>}
-              </div>
-
-              <div className="panelTitle" style={{ marginTop: 16 }}>
-                <span className="icon" aria-hidden>{EventIcon}</span>
-                Current game players
-              </div>
-              <PlayersPanel players={game.players} balances={game.balances} positions={game.positions} currentIdx={game.currentIdx} />
-
-              <div className="btnRow" style={{ marginTop: 12 }}>
-                <button className="btn glow" onClick={()=>setSection('play')}>Go to board</button>
-              </div>
-            </div>
-          </section>
+        {section === 'dashboard' && (
+          <HarborScreen
+            stats={{
+              openTables: lobbies.length,
+              players: game.players.length,
+              ownedTiles: Object.values(game.ownership).filter(Boolean).length,
+              housesBuilt: Object.values(game.houses).reduce((a, c) => a + (c || 0), 0),
+              cashTotal: Object.values(game.balances).reduce((a: number, c) => a + (Number(c) || 0), 0),
+              chanceLeft: chanceDeck.length,
+              chestLeft: chestDeck.length,
+            }}
+            lobbies={lobbies}
+            players={game.players}
+            balances={game.balances}
+            positions={game.positions}
+            currentIdx={game.currentIdx}
+            ownership={game.ownership}
+            inJail={inJail}
+            jailPasses={jailPasses}
+            myPlayerId={account?.address}
+            feed={feed}
+            hasActiveGame={game.players.length > 0}
+            onGoToBoard={() => setSection('play')}
+            onGoToLobby={() => setSection('onboard')}
+            onStart={startGame}
+            startingGameId={startingId}
+            seatsTotal={activeTable ? activeTable.seatsTotal : undefined}
+          />
         )}
 
-        {section==='play' && game.players.length === 0 && (
-          <section className="panel" style={{ textAlign: 'center', padding: '48px 24px' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🐋</div>
-            <h2 style={{ margin: '0 0 8px', color: 'var(--text-bright)' }}>No Active Game</h2>
-            <p style={{ color: 'var(--muted)', marginBottom: 16 }}>Create or join a lobby first, then start the game.</p>
-            <button className="btn glow" onClick={() => setSection('onboard')}>Go to Lobby</button>
-          </section>
+        {section === 'play' && !account && (
+          <WalletDisconnected
+            action={<WalletMenu onCopyAddress={() => toastSuccess('Address copied')} />}
+            secondaryLabel="Read the rulebook"
+            onSecondary={() => setSection('manual')}
+          />
         )}
 
-        {section==='play' && game.players.length > 0 && (
-          <section className="panel twoCol play">
-            <div className="col col-left">
-              <div className="panelTitle">
-                <span className="icon" aria-hidden>{BoardIcon}</span>
-                Game board
-              </div>
-              <MonopolyBoard
+        {section === 'play' && !!account && game.players.length === 0 && (
+          <NoActiveGame
+            onGoToLobby={() => setSection('onboard')}
+            secondaryLabel="Read the rulebook"
+            onSecondary={() => setSection('manual')}
+          />
+        )}
+
+        {section === 'play' && !!account && game.players.length > 0 && (
+          <div className="play-layout">
+            <div className="play-board">
+              <GameBoard
                 players={game.players}
                 positions={game.positions}
                 ownership={game.ownership}
@@ -980,373 +1178,187 @@ function App() {
                 onRoll={rollDice}
                 mortgages={mortgages}
                 currentPlayerIdx={game.currentIdx}
+                prices={price}
+                lastRoll={lastRoll}
+                isMyTurn={isMyTurn}
+                canRoll={!openCard}
+                potEth={activeTable ? activeTable.pot : undefined}
               />
             </div>
-            <div className="col col-right">
-              <div className="panelTitle">
-                <span className="icon" aria-hidden>{EventIcon}</span>
-                {isMyTurn ? 'Your turn' : `${curPlayer.name}'s turn`}
-              </div>
-              {!isMyTurn && game.players.length > 1 && (
-                <div style={{ padding: '10px 14px', background: 'rgba(14,165,233,0.06)', border: '1px solid rgba(14,165,233,0.15)', borderRadius: 10, marginBottom: 12, fontSize: 13, color: 'var(--muted)' }}>
-                  Waiting for <strong style={{ color: curPlayer.color }}>{curPlayer.name}</strong> to play...
-                </div>
-              )}
-              <ActionBar
-                cur={curPlayer}
-                tile={tile}
-                canBuy={!!canBuy}
-                canBuild={!!canBuild}
-                canDraw={!!canDrawCard}
-                onBuy={() => buyProperty(selected)}
-                onBuild={() => buildHouse(selected)}
-                onDraw={() => tile?.kind==='chance'?drawCard('chance'):tile?.kind==='chest'?drawCard('chest'):undefined}
-                onEndTurn={endTurn}
-                onMortgage={() => mortgageProperty(selected)}
-                onUnmortgage={() => unmortgageProperty(selected)}
-                canMortgage={owner===curPlayer.id && !isMortgaged && tile && (tile.kind==='property'||tile.kind==='rail'||tile.kind==='utility')}
-                canUnmortgage={owner===curPlayer.id && isMortgaged}
-                inJailTurns={inJail[curPlayer.id]||0}
-                onPayBail={payBail}
-                onTrade={() => setTradeOpen(true)}
-                onAuction={() => {
-                  if (!canBuy) { toastInfo('Select an unowned property to auction'); return; }
-                  setAuctionOpen(true);
-                  setAuctionBid(Math.floor((price[selected] || 100) / 2));
-                }}
-                balances={game.balances}
-              />
-              {/* Force skip if opponent is taking too long */}
-              {account && game.players[game.currentIdx]?.id !== account.address && (
-                <button
-                  className="btn outline small"
-                  style={{ marginTop: 8 }}
-                  onClick={async () => {
-                    if (!client || !currentGameId) return;
-                    try {
-                      await client.board_actions.forceSkipTurn(account, currentGameId);
-                      toastSuccess('Turn skipped!');
-                      log('info', 'Turn Skipped', 'Timed-out player was skipped');
-                    } catch (error) {
-                      console.error('Force skip failed:', error);
-                      toastError('Cannot skip yet — turn may not be timed out');
-                    }
-                  }}
-                >
-                  Force Skip Turn (timeout)
-                </button>
-              )}
-              <div className="panelTitle" style={{ marginTop: 16 }}>
-                <span className="icon" aria-hidden>{EventIcon}</span>
-                Tile details
-              </div>
-              <TileDetails tile={tile} ownerId={owner} players={game.players} price={price[selected]} houses={game.houses[selected] || 0} mortgaged={!!mortgages[selected]} />
 
-              <div className="panelTitle" style={{ marginTop: 16 }}>
-                <span className="icon" aria-hidden>{EventIcon}</span>
-                Players
-              </div>
-              <PlayersPanel players={game.players} balances={game.balances} positions={game.positions} currentIdx={game.currentIdx} />
+            <ControlRail
+              cur={curPlayer}
+              isMyTurn={isMyTurn}
+              myId={account?.address}
+            seatsTotal={activeTable ? activeTable.seatsTotal : undefined}
+              tile={tile}
+              price={price[selected]}
+              canBuy={!!canBuy}
+              canBuild={!!canBuild}
+              canDraw={!!canDrawCard}
+              canMortgage={!!(owner === curPlayer.id && !isMortgaged && tile && ['property','rail','utility'].includes(tile.kind))}
+              canUnmortgage={!!(owner === curPlayer.id && isMortgaged)}
+              inJailTurns={inJail[curPlayer.id] || 0}
+              inJail={inJail}
+              jailPasses={jailPasses}
+              onBuy={() => buyProperty(selected)}
+              onBuild={() => buildHouse(selected)}
+              onDraw={() => tile?.kind === 'chance' ? drawCard('chance') : tile?.kind === 'chest' ? drawCard('chest') : undefined}
+              onEndTurn={endTurn}
+              onMortgage={() => mortgageProperty(selected)}
+              onUnmortgage={() => unmortgageProperty(selected)}
+              onPayBail={payBail}
+              onTrade={() => setTradeOpen(true)}
+              onAuction={() => {
+                if (!canBuy) { toastInfo('Select an unowned property to auction'); return; }
+                setAuctionBid(price[selected] || 100);
+                setAuctionOpen(true);
+              }}
+              canForceSkip={!!account && game.players[game.currentIdx]?.id !== account.address}
+              onForceSkip={async () => {
+                if (!account || !client || !currentGameId) return;
+                try {
+                  await client.board_actions.forceSkipTurn(account, currentGameId);
+                  toastSuccess('Turn skipped');
+                  log('info', 'Turn skipped', 'The timed-out player was skipped');
+                } catch (error) {
+                  console.error('Force skip failed:', error);
+                  toastError('That turn has not timed out yet');
+                }
+              }}
+              balances={game.balances}
+              players={game.players}
+              positions={game.positions}
+              ownership={game.ownership}
+              houses={game.houses}
+              mortgages={mortgages}
+              currentIdx={game.currentIdx}
+              chanceLeft={chanceDeck.length}
+              chestLeft={chestDeck.length}
+              feed={feed}
+            />
 
-              <div className="panelTitle" style={{ marginTop: 16 }}>
-                <span className="icon" aria-hidden>{DiceIcon}</span>
-                Cards & Decks
-              </div>
-              <div className="tileDetails" style={{ fontSize: 13 }}>
-                <div className="row">
-                  <span>Chance deck</span>
-                  <span>{chanceDeck.length} cards remaining</span>
-                </div>
-                <div className="row">
-                  <span>Chest deck</span>
-                  <span>{chestDeck.length} cards remaining</span>
-                </div>
-                {game.players.map(p => {
-                  const passes = jailPasses[p.id] || 0;
-                  const ownedCount = Object.values(game.ownership).filter(o => o === p.id).length;
-                  return (
-                    <div key={p.id} className="row">
-                      <span style={{ color: p.color, fontWeight: 600 }}>{p.name}</span>
-                      <span>
-                        {ownedCount} properties
-                        {passes > 0 && <span style={{ marginLeft: 8, color: 'var(--accent)' }}>🎟 {passes} jail pass{passes > 1 ? 'es' : ''}</span>}
-                      </span>
-                    </div>
-                  );
-                })}
-                {curPlayer.id && (inJail[curPlayer.id] || 0) > 0 && (
-                  <div className="row" style={{ color: 'var(--warn)' }}>
-                    <span>⛓ {curPlayer.name} in Jail</span>
-                    <span>{inJail[curPlayer.id]} turn{inJail[curPlayer.id] > 1 ? 's' : ''} left</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="panelTitle" style={{ marginTop: 16 }}>
-                <span className="icon" aria-hidden>{EventIcon}</span>
-                Activity
-              </div>
-              <div className="feed">
-                {feed.map((f, idx) => (
-                  <div key={idx} className={`feedItem ${f.kind}`}>
-                    <div className="feedHeader">
-                      <span className="dot"/>
-                      <span className="feedTitle">{f.title}</span>
-                      <span className="time">{f.time}</span>
-                    </div>
-                    <div className="feedBody">{f.body}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
+          </div>
         )}
 
-        {section==='manual' && (
-          <section className="panel">
-            <GameManual />
-          </section>
-        )}
+        {section === 'manual' && <ManualScreen onBackToBoard={() => setSection('play')} />}
+      </AppShell>
 
-  {/* Treasury UI removed */}
+      {/* Chance / Community Chest card */}
+      <CardModal
+        open={!!openCard}
+        card={openCard}
+        drawnBy={{ name: curPlayer.name, color: curPlayer.color }}
+        tileLookup={(tileId) => monoTiles[tileId]?.label}
+        onApply={applyCard}
+        onClose={() => setOpenCard(undefined)}
+      />
 
-        {/* ...existing code for other sections (events/dashboard) can be added similarly ... */}
+      {/* Trade */}
+      <TradeModal
+        open={tradeOpen}
+        players={game.players}
+        myId={curPlayer.id}
+        myProperties={propertiesOwnedBy(curPlayer.id)}
+        theirProperties={propertiesOwnedBy(tradeOffer?.toPlayer || '')}
+        tileLookup={tradePropertyFor}
+        boardProperties={boardProperties}
+        myBalance={game.balances[curPlayer.id] || 0}
+        value={tradeOffer ?? { toPlayer: '', propertyId: 0, price: 0 }}
+        onChange={setTradeOffer}
+        onClose={() => { setTradeOpen(false); setTradeOffer(null); }}
+        onSubmit={async () => {
+          if (!tradeOffer?.toPlayer || !tradeOffer?.propertyId) return;
+          const cur = game.players[game.currentIdx];
+          if (!cur) return;
 
-        <footer className="footer">© Whaleopoly • Built on Starknet</footer>
-      </main>
+          if (account && client && currentGameId) {
+            try {
+              await client.property_management.transferProperty(
+                account, currentGameId, tradeOffer.propertyId, tradeOffer.toPlayer, tradeOffer.price
+              );
+              toastSuccess('Trade completed');
+            } catch (error) {
+              console.error('Trade contract call failed:', error);
+              toastError(txErrorReason(error, 'That action may not have synced to the chain'));
+            }
+          }
 
-      <div className="bgOrbs" aria-hidden>
-        <span className="orb orbA"/>
-        <span className="orb orbB"/>
-        <span className="orb orbC"/>
-      </div>
+          updateGame(g => ({
+            ...g,
+            ownership: { ...g.ownership, [tradeOffer.propertyId]: tradeOffer.toPlayer },
+            balances: {
+              ...g.balances,
+              [cur.id]: (g.balances[cur.id] || 0) + tradeOffer.price,
+              [tradeOffer.toPlayer]: (g.balances[tradeOffer.toPlayer] || 0) - tradeOffer.price,
+            }
+          }));
 
-      {/* Game over victory overlay */}
+          const tradeTile = monoTiles[tradeOffer.propertyId];
+          log('good', 'Trade completed', `${tradeTile?.label || 'Property'} sold for ${money(tradeOffer.price)}`);
+          setTradeOpen(false);
+          setTradeOffer(null);
+        }}
+      />
+
+      {/* Auction */}
+      <AuctionModal
+        open={auctionOpen}
+        propertyName={monoTiles[selected]?.label || `Tile ${selected}`}
+        groupColor={monoTiles[selected]?.color}
+        startingPrice={price[selected] || 0}
+        value={auctionBid}
+        onChange={setAuctionBid}
+        maxBid={game.balances[curPlayer.id] || 0}
+        onPass={() => setAuctionOpen(false)}
+        onClose={() => setAuctionOpen(false)}
+        onBid={async () => {
+          if (account && client && currentGameId) {
+            try {
+              await client.property_management.auctionProperty(account, currentGameId, selected, auctionBid);
+              toastSuccess('Bid accepted');
+            } catch (error) {
+              console.error('Auction contract call failed:', error);
+              toastError(txErrorReason(error, 'The bid may not have synced to the chain'));
+            }
+          }
+          updateGame(g => ({
+            ...g,
+            ownership: { ...g.ownership, [selected]: curPlayer.id },
+            balances: { ...g.balances, [curPlayer.id]: (g.balances[curPlayer.id] || 0) - auctionBid },
+          }));
+          log('good', 'Auction won', `${monoTiles[selected]?.label || 'Property'} bought for ${money(auctionBid)}`);
+          setAuctionOpen(false);
+        }}
+      />
+
+      {/* Bankruptcy — a real event in the engine, so it gets a real surface */}
+      {bankruptcy && (
+        <BankruptcyModal
+          open
+          player={{ name: bankruptcy.player.name, color: bankruptcy.player.color }}
+          debt={bankruptcy.debt}
+          creditor={bankruptcy.creditor ? { name: bankruptcy.creditor.name, color: bankruptcy.creditor.color } : null}
+          propertiesTransferred={bankruptcy.propertiesTransferred}
+          onContinue={() => setBankruptcy(null)}
+          onClose={() => setBankruptcy(null)}
+        />
+      )}
+
+      {/* Victory */}
       {gameOver && (
-        <div className="cardModal" role="dialog" aria-modal="true">
-          <div className="cardPanel" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>&#x1F40B;</div>
-            <div className="cardTitle" style={{ fontSize: 24 }}>Victory!</div>
-            <div className="cardBody">
-              <span style={{ color: gameOver.winner.color, fontWeight: 700 }}>{gameOver.winner.name}</span> has conquered the depths!
-            </div>
-            <div style={{ color: 'var(--gold)', fontSize: 18, fontWeight: 700, margin: '12px 0' }}>
-              Final Balance: ${(game.balances[gameOver.winner.id] || 0).toLocaleString()}
-            </div>
-            <div className="cardActions" style={{ justifyContent: 'center' }}>
-              <button className="btn glow" onClick={() => { setGameOver(null); setSection('onboard'); }}>
-                Back to Lobby
-              </button>
-            </div>
-          </div>
-        </div>
+        <VictoryModal
+          open
+          winner={gameOver.winner}
+          finalBalance={game.balances[gameOver.winner.id] || 0}
+          standings={standings}
+          pot={activeTable ? activeTable.pot : undefined}
+          onNewGame={() => { gameOverRef.current = false; setGameOver(null); setSection('onboard'); }}
+          onClose={() => setGameOver(null)}
+        />
       )}
 
-      {/* Insert card modal at root level so it overlays */}
-      {openCard && (
-        <div className="cardModal" role="dialog" aria-modal="true">
-          <div className="cardPanel">
-            <div className="cardHeader">
-              <span className={`deckTag ${openCard.deck}`}>{openCard.deck==='chance'?'Chance':'Chest'}</span>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                Drawn by <strong style={{ color: curPlayer.color }}>{curPlayer.name}</strong>
-              </span>
-              <button className="closeBtn" onClick={()=>setOpenCard(undefined)} aria-label="Close">&times;</button>
-            </div>
-            <div className="cardTitle">{openCard.title}</div>
-            <div className="cardBody">
-              {openCard.text}
-              {openCard.action.kind === 'money' && (
-                <div style={{ marginTop: 8, fontWeight: 700, color: openCard.action.amount >= 0 ? 'var(--good)' : 'var(--danger, #ef4444)' }}>
-                  {openCard.action.amount >= 0 ? '+' : '-'}${Math.abs(openCard.action.amount)}
-                </div>
-              )}
-              {openCard.action.kind === 'jail_pass' && (
-                <div style={{ marginTop: 8, color: 'var(--accent)' }}>This card is kept until used.</div>
-              )}
-            </div>
-            <div className="cardActions">
-              {openCard.action.kind==='jail_pass' && <span className="chip" style={{ color: 'var(--accent)', borderColor: 'rgba(14,165,233,0.3)' }}>Keep Card</span>}
-              <button className="btn glow" onClick={()=>applyCard(openCard)}>Apply</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Add floating jail pass use button if applicable */}
-      {hasJailPass && curPlayer.id && (inJail[curPlayer.id]||0)>0 && (
-        <button className="floatingBtn" onClick={useJailPass}>Use Jail Pass ({jailPasses[curPlayer.id] || 0})</button>
-      )}
-
-      {/* Trade dialog */}
-      {tradeOpen && (
-        <div className="cardModal" role="dialog" aria-modal="true">
-          <div className="cardPanel">
-            <div className="cardHeader">
-              <span className="deckTag chance">Trade</span>
-              <button className="closeBtn" onClick={() => { setTradeOpen(false); setTradeOffer(null); }} aria-label="Close">&times;</button>
-            </div>
-            <div className="cardTitle">Propose a Trade</div>
-            <div className="cardBody">
-              {/* Select player to trade with */}
-              <div className="field" style={{ marginBottom: 12 }}>
-                <label>Trade with:</label>
-                <select
-                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border-default)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', width: '100%' }}
-                  onChange={(e) => setTradeOffer(prev => ({ toPlayer: e.target.value, propertyId: prev?.propertyId || 0, price: prev?.price || 0 }))}
-                  value={tradeOffer?.toPlayer || ''}
-                >
-                  <option value="">Select player...</option>
-                  {game.players
-                    .filter(p => p.id !== game.players[game.currentIdx]?.id)
-                    .map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                </select>
-              </div>
-
-              {/* Select property to offer */}
-              <div className="field" style={{ marginBottom: 12 }}>
-                <label>Your property to trade:</label>
-                <select
-                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border-default)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', width: '100%' }}
-                  onChange={(e) => setTradeOffer(prev => ({ toPlayer: prev?.toPlayer || '', propertyId: Number(e.target.value), price: prev?.price || 0 }))}
-                  value={tradeOffer?.propertyId || 0}
-                >
-                  <option value={0}>Select property...</option>
-                  {Object.entries(game.ownership)
-                    .filter(([, owner]) => owner === game.players[game.currentIdx]?.id)
-                    .map(([tileId]) => {
-                      const tile = monoTiles[Number(tileId)];
-                      return tile ? (
-                        <option key={tileId} value={tileId}>{tile.label}</option>
-                      ) : null;
-                    })}
-                </select>
-              </div>
-
-              {/* Price */}
-              <div className="field" style={{ marginBottom: 12 }}>
-                <label>Asking price ($):</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={tradeOffer?.price || ''}
-                  onChange={(e) => setTradeOffer(prev => ({ toPlayer: prev?.toPlayer || '', propertyId: prev?.propertyId || 0, price: Number(e.target.value) }))}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-            <div className="cardActions">
-              <button className="btn ghost" onClick={() => { setTradeOpen(false); setTradeOffer(null); }}>Cancel</button>
-              <button
-                className="btn glow"
-                disabled={!tradeOffer?.toPlayer || !tradeOffer?.propertyId}
-                onClick={async () => {
-                  if (!tradeOffer?.toPlayer || !tradeOffer?.propertyId) return;
-                  const cur = game.players[game.currentIdx];
-                  if (!cur) return;
-
-                  // Try contract call
-                  if (account && client && currentGameId) {
-                    try {
-                      await client.property_management.transferProperty(
-                        account, currentGameId, tradeOffer.propertyId, tradeOffer.toPlayer, tradeOffer.price
-                      );
-                      toastSuccess('Trade completed!');
-                    } catch (error) {
-                      console.error('Trade contract call failed:', error);
-                      toastError('Action may not sync to blockchain');
-                    }
-                  }
-
-                  // Local state update
-                  updateGame(g => ({
-                    ...g,
-                    ownership: { ...g.ownership, [tradeOffer.propertyId]: tradeOffer.toPlayer },
-                    balances: {
-                      ...g.balances,
-                      [cur.id]: (g.balances[cur.id] || 0) + tradeOffer.price,
-                      [tradeOffer.toPlayer]: (g.balances[tradeOffer.toPlayer] || 0) - tradeOffer.price,
-                    }
-                  }));
-
-                  const tradeTile = monoTiles[tradeOffer.propertyId];
-                  log('good', 'Trade Complete', `${tradeTile?.label || 'Property'} sold for $${tradeOffer.price}`);
-                  setTradeOpen(false);
-                  setTradeOffer(null);
-                }}
-              >
-                Execute Trade
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Auction dialog */}
-      {auctionOpen && (
-        <div className="cardModal" role="dialog" aria-modal="true">
-          <div className="cardPanel">
-            <div className="cardHeader">
-              <span className="deckTag chance">Auction</span>
-              <button className="closeBtn" onClick={() => setAuctionOpen(false)} aria-label="Close">&times;</button>
-            </div>
-            <div className="cardTitle">Auction: {monoTiles[selected]?.label || `Tile ${selected}`}</div>
-            <div className="cardBody">
-              <p style={{ color: 'var(--muted)', marginBottom: 12 }}>
-                Starting price: ${price[selected] || 0}. Place your bid below.
-              </p>
-              <div className="field" style={{ marginBottom: 12 }}>
-                <label>Your bid ($):</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={auctionBid}
-                  onChange={(e) => setAuctionBid(Number(e.target.value))}
-                />
-              </div>
-            </div>
-            <div className="cardActions">
-              <button className="btn ghost" onClick={() => setAuctionOpen(false)}>Cancel</button>
-              <button
-                className="btn glow"
-                disabled={auctionBid <= 0 || auctionBid > (game.balances[curPlayer.id] || 0)}
-                onClick={async () => {
-                  if (account && client && currentGameId) {
-                    try {
-                      await client.property_management.auctionProperty(account, currentGameId, selected, auctionBid);
-                      toastSuccess('Auction started!');
-                    } catch (error) {
-                      console.error('Auction contract call failed:', error);
-                      toastError('Auction may not sync to blockchain');
-                    }
-                  }
-                  // Local: just buy at bid price as a simplified auction
-                  updateGame(g => ({
-                    ...g,
-                    ownership: { ...g.ownership, [selected]: curPlayer.id },
-                    balances: { ...g.balances, [curPlayer.id]: (g.balances[curPlayer.id] || 0) - auctionBid },
-                  }));
-                  log('good', 'Auction Won', `${monoTiles[selected]?.label || 'Property'} bought for $${auctionBid}`);
-                  setAuctionOpen(false);
-                }}
-              >
-                Place Bid
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Toast notifications */}
-      <div className="toast-container">
-        {toasts.map(t => (
-          <div key={t.id} className={`toast ${t.kind}`} onClick={() => removeToast(t.id)}>
-            {t.message}
-          </div>
-        ))}
-      </div>
-    </div>
+      <ToastStack toasts={toasts} onDismiss={removeToast} />
     </>
   )
 }

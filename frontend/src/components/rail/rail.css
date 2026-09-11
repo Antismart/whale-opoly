@@ -1,0 +1,781 @@
+/* ============================================================
+   ABYSSAL PROTOCOL — Control Rail
+   Right-hand column of the Play screen.
+
+   Layout contract: a flex column with a PINNED header region
+   (turn + actions) and a single scrolling body. The parent
+   should give the rail 320–440px of width and a bounded
+   height; the rail caps itself against the viewport as a
+   fallback so the action buttons can never scroll away.
+   320px is the floor because the board owns the slack — its
+   2-up action grid and 2-up deck row both survive it.
+
+   Depends on styles/tokens.css + styles/primitives.css.
+   Only layout and rail-specific styling lives here.
+   ============================================================ */
+
+.rail {
+  --rail-gap: var(--sp-3);
+  --rail-pad: var(--sp-4);
+  --rail-max-h: calc(var(--vhSafe, 100vh) - 140px);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--rail-gap);
+  width: 100%;
+  /* The board is the constraint; the rail yields to it. Its 2-up action
+     grid and 2-up deck row both survive 320px, which is what the play
+     layout falls back to at the 1024px floor. */
+  min-width: 320px;
+  max-width: 440px;
+  height: 100%;
+  min-height: 0;
+  max-height: var(--rail-max-h);
+  color: var(--text);
+}
+
+.rail-pinned {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--rail-gap);
+}
+
+.rail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--rail-gap);
+  padding-right: 4px;
+}
+
+/* Panels keep their natural height — the rail body scrolls instead. */
+.rail-scroll > * { flex: none; }
+
+/* ------------------------------------------------------------
+   Shared panel shell — tighter than the generic .panel
+   ------------------------------------------------------------ */
+
+.rail-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--rail-pad);
+  background: var(--panel);
+  /* One top-surface radius across the product — see the radii note in
+     tokens.css. The board's 18px corner sits directly beside these. */
+  border-radius: var(--r-2xl);
+  border: var(--hairline-default);
+  box-shadow: var(--inset-top), var(--shadow-1);
+}
+
+.rail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 18px;
+}
+
+.rail-head-icon {
+  display: inline-flex;
+  color: var(--text-dim);
+  flex: none;
+}
+
+.rail-head-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+}
+
+.rail-head-right {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Player / group colour dot */
+.rail-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(4, 10, 21, 0.85);
+}
+
+.rail-dot-lg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ============================================================
+   1 — Turn panel (pinned)
+   ============================================================ */
+
+.rail-turn {
+  gap: var(--sp-3);
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.07), rgba(6, 22, 40, 0.85) 70%);
+}
+
+.rail-turn-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.rail-turn-who {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.rail-turn-pill {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  height: 20px;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  border: 1px solid rgba(14, 165, 233, 0.32);
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+}
+
+.rail-turn-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-meta);
+  color: var(--muted);
+  min-width: 0;
+}
+
+.rail-turn-wait strong {
+  font-weight: var(--fw-semibold);
+}
+
+/* Quiet animated indicator — three slow breathing bars */
+.rail-wait-anim {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 9px;
+  flex: none;
+}
+
+.rail-wait-anim i {
+  display: block;
+  width: 2px;
+  height: 9px;
+  border-radius: 1px;
+  opacity: 0.35;
+  transform-origin: bottom;
+  animation: rail-breathe 1.8s var(--ease) infinite;
+}
+
+.rail-wait-anim i:nth-child(2) { animation-delay: 0.22s; }
+.rail-wait-anim i:nth-child(3) { animation-delay: 0.44s; }
+
+@keyframes rail-breathe {
+  0%, 100% { transform: scaleY(0.42); opacity: 0.3; }
+  45% { transform: scaleY(1); opacity: 0.85; }
+}
+
+.rail-turn-name {
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail-turn-cash {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: none;
+  text-align: right;
+}
+
+.rail-turn-cash-label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+}
+
+.rail-turn-cash-val {
+  font-size: var(--text-md);
+  font-weight: var(--fw-bold);
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.rail-turn-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: var(--hairline);
+  min-width: 0;
+}
+
+.rail-turn-where {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+
+.rail-turn-where svg { color: var(--text-dim); flex: none; }
+.rail-turn-where strong { color: var(--text); font-weight: var(--fw-semibold); }
+.rail-turn-foot .chip { margin-left: auto; flex: none; }
+
+.rail-skip {
+  justify-content: center;
+}
+
+/* ============================================================
+   2 — Action bar (pinned)
+   ============================================================ */
+
+.rail-actions {
+  gap: var(--sp-2);
+}
+
+.rail-actions-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-1);
+}
+
+.rail-actions-target {
+  margin-left: auto;
+  font-size: var(--text-meta);
+  color: var(--text-dim);
+  max-width: 55%;
+  text-align: right;
+}
+
+.rail-primary {
+  justify-content: center;
+  font-size: var(--text-base);
+}
+
+.rail-roll {
+  justify-content: center;
+}
+
+.rail-act-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.rail-act-ghosts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
+
+/* Cost-bearing action button: label left, price right */
+.rail-act {
+  justify-content: space-between;
+  gap: var(--sp-2);
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  font-size: var(--text-sm);
+  overflow: hidden;
+}
+
+.rail-act-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail-act-cost {
+  flex: none;
+  color: var(--text-dim);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  transition: color var(--dur-3) var(--ease);
+}
+
+.rail-act:hover:not([aria-disabled='true']) .rail-act-cost { color: var(--text); }
+
+.rail-act-ghosts .rail-act { justify-content: center; }
+
+/* The reason the most important blocked action is blocked, stated in the
+   layout rather than hidden in a hover tooltip — the same treatment the
+   board gives its own "Roll dice" button. Height is reserved so enabling
+   an action never shifts the panel. */
+.rail-act-reason {
+  min-height: 15px;
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.03em;
+  line-height: var(--lh-snug);
+  color: var(--muted);
+}
+
+.rail-act-reason.is-hidden { visibility: hidden; }
+
+/* aria-disabled is used instead of [disabled] so the explanatory
+   title tooltip still appears on hover. Neutralise the hover and
+   press affordances the primitives apply to :not(:disabled). */
+.rail .btn[aria-disabled='true'] { cursor: not-allowed; }
+
+/* Availability is carried by CONTRAST, not by a uniform fade. A flat 0.55
+   opacity dimmed the label and the border by the same amount, so a disabled
+   outline button still read as a live control at a glance — players clicked
+   it and got nothing. Instead: the available state gains a surface and a
+   brighter border, and the unavailable state loses both and drops to the
+   dim ink. The two are now distinguishable without reading the label. */
+.rail .rail-act:not([aria-disabled='true']) {
+  background: var(--surface-1);
+  border-color: var(--border-default);
+  color: var(--text-bright);
+}
+
+.rail .btn[aria-disabled='true'],
+.rail .btn[aria-disabled='true']:hover {
+  opacity: 1;
+  background: transparent;
+  border-color: var(--border-subtle);
+  color: var(--text-dim);
+  box-shadow: none;
+}
+
+.rail .btn[aria-disabled='true'] .rail-act-cost { color: var(--text-dim); opacity: 0.65; }
+.rail .btn[aria-disabled='true']:active { transform: none; }
+
+.rail .btn-outline[aria-disabled='true']:hover {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--text-bright);
+}
+
+.rail .btn-ghost[aria-disabled='true']:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.rail .btn-primary[aria-disabled='true']:hover {
+  background: var(--surface-3);
+  border-color: var(--border-default);
+  color: var(--muted);
+  box-shadow: none;
+}
+
+/* ============================================================
+   3 — Property inspector
+   ============================================================ */
+
+.rail-inspector {
+  padding-top: calc(var(--rail-pad) + 3px);
+  overflow: hidden;
+}
+
+.rail-inspector-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  opacity: 0.9;
+}
+
+.rail-tile-id {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.rail-tile-name {
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  color: var(--text-bright);
+  letter-spacing: var(--ls-tight);
+}
+
+.rail-tile-kind {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.rail-owner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.rail-owner .chip { gap: var(--sp-1); }
+
+.rail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 0;
+  background: var(--border-subtle);
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.rail-grid-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  background: var(--surface-1);
+}
+
+.rail-grid-key {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  line-height: var(--lh-snug);
+}
+
+.rail-grid-val {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.rail-note {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--surface-1);
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: var(--lh-snug);
+}
+
+.rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: var(--sp-2);
+  border-top: var(--hairline);
+}
+
+.rail-group-line {
+  font-size: var(--text-meta);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-group-complete {
+  font-size: var(--text-meta);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-2-ink);
+}
+
+/* ============================================================
+   4 — Players
+   ============================================================ */
+
+.rail-players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.rail-player {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 8px 10px 8px 12px;
+  background: var(--surface-0);
+  border: 1px solid transparent;
+  border-radius: var(--r-lg);
+  min-width: 0;
+  /* A player row is a readout, not a control — there is deliberately no
+     :hover here. The transition exists only so the active-turn state
+     crossfades when the turn advances. */
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease);
+}
+
+.rail-player.is-active {
+  background: var(--surface-2);
+  border-color: var(--border-default);
+}
+
+.rail-player-bar {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  opacity: 0;
+  transition: opacity var(--dur-3) var(--ease);
+}
+
+.rail-player.is-active .rail-player-bar { opacity: 1; }
+
+.rail-player-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.rail-player-name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+}
+
+/* Extends .chip.chip-xs — tone and casing only, no box of its own. */
+.rail-you {
+  flex: none;
+  background: var(--surface-3);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  font-weight: var(--fw-semibold);
+}
+
+.rail-player-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+.rail-sep { color: var(--text-dim); }
+
+/* Extends .chip.chip-xs — tone only. The count keeps the badge's own ink
+   rather than the chip primitive's neutral value colour. */
+.rail-badge {
+  flex: none;
+  font-weight: var(--fw-semibold);
+}
+
+.rail-badge .num { color: inherit; }
+
+.rail-badge-warn {
+  background: var(--warn-soft);
+  border-color: rgba(249, 115, 22, 0.30);
+  color: var(--warn-ink);
+}
+
+.rail-badge-accent {
+  background: var(--accent-soft);
+  border-color: rgba(14, 165, 233, 0.30);
+  color: var(--accent-ink);
+}
+
+.rail-player-cash {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.rail-player.is-active .rail-player-cash { color: var(--text-bright); }
+
+/* ============================================================
+   5 — Decks
+   ============================================================ */
+
+.rail-decks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
+
+/* A static readout — no handler, so no hover and no transition. */
+.rail-deck {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--surface-1);
+  border: var(--hairline);
+  border-radius: var(--r-lg);
+  min-width: 0;
+}
+
+.rail-deck-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: var(--r-sm);
+  border: var(--hairline-default);
+}
+
+.rail-deck-mark-chance {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.rail-deck-mark-chest {
+  background: var(--accent-2-soft);
+  color: var(--accent-2-ink);
+}
+
+.rail-deck-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rail-deck-name {
+  font-size: var(--text-meta);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail-deck-count {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   6 — Activity
+   ============================================================ */
+
+.rail-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rail-feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: 8px 0;
+  border-top: var(--hairline);
+  min-width: 0;
+}
+
+.rail-feed-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.rail-feed-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.rail-feed-dot.is-good { background: var(--good); }
+.rail-feed-dot.is-warn { background: var(--warn); }
+.rail-feed-dot.is-info { background: var(--accent); }
+
+.rail-feed-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.rail-feed-top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.rail-feed-title {
+  font-size: var(--text-meta);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  flex: 1 1 auto;
+}
+
+.rail-feed-time {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.rail-feed-body {
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------
+   Reduced motion
+   ------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-wait-anim i {
+    animation: none;
+    transform: scaleY(0.7);
+    opacity: 0.6;
+  }
+}

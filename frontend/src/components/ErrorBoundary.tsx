@@ -1,4 +1,5 @@
 import React from 'react';
+import { LogoMark } from './brand/Logo';
 
 interface Props {
   children: React.ReactNode;
@@ -27,35 +28,30 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return this.props.fallback || (
-        <div style={{
-          padding: 40,
-          textAlign: 'center',
-          color: '#e0f2fe',
-          background: '#040a15',
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column' as const,
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 16
-        }}>
-          <div style={{ fontSize: 48 }}>&#x1F40B;</div>
-          <h2>Something went wrong</h2>
-          <p style={{ color: '#7aa2c4' }}>{this.state.error?.message || 'Unexpected error'}</p>
-          <button
-            onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
-            style={{
-              padding: '10px 20px',
-              borderRadius: 10,
-              border: '1px solid rgba(14, 165, 233, 0.4)',
-              background: 'rgba(14, 165, 233, 0.15)',
-              color: '#e0f2fe',
-              cursor: 'pointer',
-              fontSize: 14,
-            }}
-          >
-            Reload Game
-          </button>
+        <div
+          style={{
+            minHeight: '100vh',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 'var(--sp-8, 32px)',
+            background: 'var(--bg, #040a15)',
+            color: 'var(--text, #e0f2fe)',
+          }}
+        >
+          <div className="empty" style={{ maxWidth: 460 }}>
+            <LogoMark size={40} />
+            <div className="empty-title">Something went wrong</div>
+            <div className="empty-text">
+              {this.state.error?.message || 'The table hit an unexpected error. Reloading usually clears it.'}
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
+            >
+              Reload Whaleopoly
+            </button>
+          </div>
         </div>
       );
     }

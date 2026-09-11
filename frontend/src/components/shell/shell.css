@@ -1,0 +1,325 @@
+/* ============================================================
+   ABYSSAL PROTOCOL — application shell
+   Sidebar (260px, sticky) + top bar (64px, sticky) + content.
+   Depends on styles/tokens.css and styles/primitives.css.
+   ============================================================ */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: 100vh;
+  min-width: var(--app-min-w);
+  position: relative;
+}
+
+/* ------------------------------------------------------------
+   Sidebar
+   ------------------------------------------------------------ */
+
+.shell-side {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: var(--sp-5) var(--sp-3) var(--sp-4);
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.05), rgba(6, 22, 40, 0.92) 42%, rgba(6, 22, 40, 0.96));
+  border-right: var(--hairline);
+  backdrop-filter: blur(12px);
+}
+
+.shell-brand {
+  display: grid;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-2) var(--sp-4);
+}
+
+.shell-brand-lockup {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+
+.shell-net {
+  justify-self: start;
+  color: var(--accent-2-ink);
+  background: var(--accent-2-soft);
+  border-color: rgba(20, 184, 166, 0.28);
+}
+
+/* ------------------------------------------------------------
+   Nav
+   ------------------------------------------------------------ */
+
+.shell-nav {
+  display: grid;
+  gap: var(--sp-1);
+  align-content: start;
+  padding: var(--sp-3) 0;
+  border-top: var(--hairline);
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+.shell-nav-heading {
+  padding: 0 var(--sp-2) var(--sp-2);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+}
+
+.shell-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: 40px;
+  padding: 0 var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-base);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    color var(--dur-3) var(--ease),
+    box-shadow var(--dur-3) var(--ease);
+}
+
+.shell-nav-item:hover:not(:disabled) {
+  background: var(--surface-1);
+  border-color: var(--border-subtle);
+  color: var(--text);
+}
+
+.shell-nav-item:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.shell-nav-item:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.shell-nav-item.is-active {
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.16), rgba(14, 165, 233, 0.05));
+  border-color: rgba(14, 165, 233, 0.32);
+  color: var(--text-bright);
+  /* No inset bloom: the 2px accent rule in ::before plus the gradient wash
+     already mark the active row, and glow is reserved for the active player
+     token, the selected tile and the one primary action. */
+  box-shadow: var(--inset-top);
+}
+
+.shell-nav-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.shell-nav-icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--text-dim);
+  transition: color var(--dur-3) var(--ease);
+}
+
+.shell-nav-item:hover .shell-nav-icon { color: var(--muted); }
+.shell-nav-item.is-active .shell-nav-icon { color: var(--accent); }
+
+.shell-nav-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-nav-badge { flex: none; margin-left: auto; }
+
+/* ------------------------------------------------------------
+   Sidebar footer — active table card + wallet slot
+   ------------------------------------------------------------ */
+
+.shell-side-foot {
+  margin-top: auto;
+  display: grid;
+  gap: var(--sp-3);
+  padding-top: var(--sp-4);
+  border-top: var(--hairline);
+}
+
+.shell-table-card {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--surface-1);
+  border: var(--hairline-default);
+  border-radius: var(--r-xl);
+  box-shadow: var(--inset-top);
+}
+
+.shell-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.shell-table-eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+}
+
+.shell-table-id {
+  font-size: var(--text-md);
+  font-weight: var(--fw-bold);
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.shell-table-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.shell-table-cell { display: grid; gap: 2px; min-width: 0; }
+
+.shell-table-key {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+}
+
+.shell-table-val {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-table-val-pot { color: var(--gold-ink); }
+
+.shell-wallet-slot { display: grid; gap: var(--sp-2); }
+
+/* ------------------------------------------------------------
+   Main column
+   ------------------------------------------------------------ */
+
+.shell-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shell-topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  height: var(--topbar-h);
+  flex: none;
+  padding: 0 var(--content-pad);
+  background: rgba(4, 10, 21, 0.72);
+  backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: var(--hairline);
+}
+
+.shell-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-size: 14px;
+}
+
+.shell-crumb {
+  color: var(--muted);
+  font-weight: var(--fw-medium);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.shell-crumb-sep { color: var(--text-dim); flex: none; }
+
+.shell-crumb-extra {
+  color: var(--accent-ink);
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.shell-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+  flex: none;
+}
+
+.shell-topbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-default);
+  flex: none;
+  margin: 0 var(--sp-1);
+}
+
+/* ------------------------------------------------------------
+   Content
+   ------------------------------------------------------------ */
+
+.shell-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--content-pad);
+}
+
+.shell-content-inner {
+  width: 100%;
+  max-width: var(--content-max-w);
+  margin: 0 auto;
+  min-width: 0;
+}
+
+.shell-footer {
+  max-width: var(--content-max-w);
+  margin: var(--sp-8) auto var(--sp-2);
+  padding-top: var(--sp-4);
+  border-top: var(--hairline);
+  text-align: center;
+  font-size: var(--text-meta);
+  color: var(--text-dim);
+}

@@ -1,0 +1,311 @@
+/* ============================================================
+   ABYSSAL PROTOCOL — wallet control
+   Top-bar connect button, connector picker and account menu.
+   Depends on styles/tokens.css + styles/primitives.css.
+   ============================================================ */
+
+.ap-wallet { position: relative; display: inline-flex; }
+
+/* ------------------------------------------------------------
+   Connected trigger — compact, glyph + truncated address
+   ------------------------------------------------------------ */
+
+.ap-wallet-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 38px;
+  padding: 0 var(--sp-3);
+  background: var(--surface-2);
+  border: var(--hairline-default);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    color var(--dur-3) var(--ease);
+}
+
+.ap-wallet-trigger:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+  color: var(--text-bright);
+}
+
+.ap-wallet-trigger:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ap-wallet-trigger:active { transform: translateY(1px); }
+
+.ap-wallet-trigger[aria-expanded='true'] {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+  color: var(--text-bright);
+}
+
+.ap-wallet-glyph { color: var(--accent-ink); flex: none; }
+
+.ap-wallet-addr {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.ap-wallet-caret {
+  color: var(--text-dim);
+  flex: none;
+  transition: transform var(--dur-3) var(--ease), color var(--dur-3) var(--ease);
+}
+
+.ap-wallet-trigger:hover .ap-wallet-caret { color: var(--muted); }
+.ap-wallet-trigger[aria-expanded='true'] .ap-wallet-caret { transform: rotate(180deg); }
+
+/* ------------------------------------------------------------
+   Popover shell (connector picker + account menu)
+   ------------------------------------------------------------ */
+
+.ap-wallet-pop {
+  position: absolute;
+  top: calc(100% + var(--sp-2));
+  right: 0;
+  z-index: var(--z-dropdown);
+  min-width: 280px;
+  padding: var(--sp-3);
+  background: var(--bg-elevated);
+  border: var(--hairline-default);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--inset-top), var(--shadow-3);
+  animation: ap-wallet-pop-in var(--dur-2) var(--ease-out) both;
+}
+
+.ap-wallet-pop-wide { min-width: 336px; }
+
+@keyframes ap-wallet-pop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.ap-wallet-pop-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-1) var(--sp-2);
+}
+
+.ap-wallet-pop-title {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+}
+
+.ap-wallet-pop-sub { font-size: var(--text-xs); color: var(--muted); }
+
+.ap-wallet-list { display: grid; gap: var(--sp-2); }
+
+/* ------------------------------------------------------------
+   Connector card
+   ------------------------------------------------------------ */
+
+.ap-connector {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3);
+  text-align: left;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    transform var(--dur-1) var(--ease);
+}
+
+.ap-connector:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--border-default);
+}
+
+.ap-connector:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ap-connector:active:not(:disabled) { transform: translateY(1px); }
+
+.ap-connector:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.ap-connector-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  color: var(--accent-ink);
+}
+
+.ap-connector-text { min-width: 0; display: grid; gap: 2px; }
+
+.ap-connector-name {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+}
+
+.ap-connector-desc {
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------
+   Account menu rows
+   ------------------------------------------------------------ */
+
+.ap-wallet-account {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+}
+
+.ap-wallet-account-label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--muted);
+}
+
+.ap-wallet-account-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ap-wallet-full {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.ap-wallet-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    color var(--dur-3) var(--ease);
+}
+
+.ap-wallet-copy:hover {
+  background: var(--surface-3);
+  border-color: var(--border-default);
+  color: var(--text-bright);
+}
+
+.ap-wallet-copy:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ap-wallet-copy.is-done { color: var(--accent-2-ink); border-color: rgba(20, 184, 166, 0.35); }
+
+.ap-wallet-net {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+
+.ap-wallet-net-name { color: var(--text); font-weight: var(--fw-medium); }
+.ap-wallet-net-dot { color: var(--accent-2); }
+
+.ap-wallet-sep {
+  height: 1px;
+  margin: var(--sp-2) calc(var(--sp-1) * -1);
+  background: var(--border-subtle);
+}
+
+.ap-wallet-disconnect {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--danger-soft);
+  border: 1px solid rgba(239, 68, 68, 0.24);
+  border-radius: var(--r-md);
+  color: var(--danger-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition:
+    background var(--dur-3) var(--ease),
+    border-color var(--dur-3) var(--ease),
+    color var(--dur-3) var(--ease);
+}
+
+.ap-wallet-disconnect:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: var(--danger-ink-hover);
+}
+
+.ap-wallet-disconnect:focus-visible {
+  outline: var(--focus-width) solid var(--danger);
+  outline-offset: var(--focus-offset);
+}
+
+.ap-wallet-disconnect:active { transform: translateY(1px); }
+
+.ap-wallet-empty {
+  padding: var(--sp-3);
+  font-size: var(--text-xs);
+  line-height: var(--lh-relaxed);
+  color: var(--muted);
+  background: var(--surface-1);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--r-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-wallet-pop { animation: none; }
+  .ap-wallet-trigger:active,
+  .ap-connector:active:not(:disabled),
+  .ap-wallet-disconnect:active { transform: none; }
+}
