@@ -3,3 +3,5 @@ dojo_mainnet.toml
 
 # Do not commit environment files
 .env*
+# Local Torii index (Slot deployments were discontinued; the indexer runs locally)
+.torii-sepolia/

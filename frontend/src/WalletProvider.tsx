@@ -5,9 +5,11 @@ import { ControllerConnector } from '@cartridge/connector';
 import manifest from '../../contracts/manifest_sepolia.json';
 
 // Extract contract addresses from manifest
+type ManifestContract = { tag?: string; address?: string };
+
 function getContractAddress(tag: string): string {
-  const contract = (manifest as any).contracts?.find((c: any) => c.tag?.includes(tag));
-  return contract?.address || '';
+  const contracts = (manifest as { contracts?: ManifestContract[] }).contracts ?? [];
+  return contracts.find(c => c.tag?.includes(tag))?.address || '';
 }
 
 const gameManagerAddr = getContractAddress('game_manager');
@@ -85,16 +87,45 @@ const policies = {
   ],
 };
 
+/**
+ * Session keys, on or off.
+ *
+ * WITH session policies (default), Cartridge pre-approves the game's
+ * entrypoints and executes them "from outside", with a paymaster sponsoring
+ * the gas. The player signs once and then plays without prompts — which is
+ * the experience this game wants.
+ *
+ * The catch: if that paymaster is unavailable, EVERY write fails before it
+ * reaches the chain ("AVNU sponsorship failed ... service not available") and
+ * there is no fallback — the player cannot choose to just pay for it
+ * themselves. Setting VITE_SESSION_KEYS=false drops the policies, so the
+ * Controller executes normally: the player approves each transaction and pays
+ * their own Sepolia ETH. Slower and noisier, but it does not depend on a
+ * sponsor being up.
+ *
+ * Defaults to enabled, so existing behaviour is unchanged unless opted out.
+ */
+const USE_SESSION_KEYS = import.meta.env.VITE_SESSION_KEYS !== 'false';
+
 // IMPORTANT: Create connector OUTSIDE of React components.
 // Creating inside a component causes recreation on every render.
 const connector = new ControllerConnector({
-  policies,
+  // Omitted entirely rather than passed empty — an empty policy set is not
+  // the same as no session, and the Controller treats them differently.
+  ...(USE_SESSION_KEYS ? { policies } : {}),
   // Cartridge RPC for Sepolia
   chains: [
     { rpcUrl: 'https://api.cartridge.gg/x/starknet/sepolia' },
   ],
   defaultChainId: '0x534e5f5345504f4c4941', // SN_SEPOLIA hex
 });
+
+if (!USE_SESSION_KEYS && typeof console !== 'undefined') {
+  console.info(
+    '[whaleopoly] Session keys disabled (VITE_SESSION_KEYS=false). ' +
+      'Each move needs a wallet signature and is paid from your own Sepolia ETH.',
+  );
+}
 
 // Use Cartridge's hosted RPC
 const provider = jsonRpcProvider({
